@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-orange: #FF9500;
+            --dark-orange: #E67E00;
+            --light-orange: #FFB84D;
+            --black: #0A0A0A;
+            --dark-gray: #1A1A1A;
+            --medium-gray: #2A2A2A;
+            --light-gray: #CCCCCC;
+            --white: #FFFFFF;
+            --off-white: #F5F5F5;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --glow: 0 0 20px rgba(255, 149, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--black) 0%, var(--dark-gray) 50%, var(--black) 100%);
+            min-height: 100vh;
+            padding: 1.5rem;
+            color: var(--off-white);
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--white);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 2.5rem;
+            text-shadow: 0 0 20px rgba(255, 149, 0, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 900;
+        }
+
+        .category {
+            margin-bottom: 1.5rem;
+        }
+
+        .category-title {
+            color: var(--white);
+            font-size: 1.3rem;
+            margin-bottom: 0.75rem;
+            padding-left: 0.75rem;
+            border-left: 4px solid var(--primary-orange);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .service-card {
+            background: linear-gradient(135deg, var(--dark-gray) 0%, var(--medium-gray) 100%);
+            border: 2px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-orange), var(--dark-orange));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .service-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-orange);
+            box-shadow: var(--glow);
+        }
+
+        .service-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+
+        .service-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .service-icon {
+            font-size: 1.75rem;
+            margin-right: 0.75rem;
+            color: var(--primary-orange);
+        }
+
+        .service-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--white);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .service-description {
+            color: var(--light-gray);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .service-url {
+            color: var(--primary-orange);
+            font-size: 0.8rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+        }
+
+        .action-btn i {
+            font-size: 0.85rem;
+        }
+
+        .restart-btn {
+            background-color: transparent;
+            color: var(--primary-orange);
+            border: 1px solid var(--primary-orange);
+        }
+
+        .restart-btn:hover {
+            background-color: var(--primary-orange);
+            color: var(--black);
+        }
+
+        .recreate-btn {
+            background-color: transparent;
+            color: var(--light-orange);
+            border: 1px solid var(--light-orange);
+        }
+
+        .recreate-btn:hover {
+            background-color: var(--light-orange);
+            color: var(--black);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .action-btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--primary-orange);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--medium-gray);
+            color: var(--white);
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid var(--primary-orange);
+            box-shadow: var(--shadow);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            border-left-color: #f44336;
+        }
+
+        .toast.success {
+            border-left-color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐳 Docker Dashboard</h1>
+
+        <div class="category">
+            <h2 class="category-title">📖 Reading</h2>
+            <div class="services">
+                <a href="http://100.123.154.40:8007" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📚</span>
+                        <span class="service-name">GreatReads (Prod)</span>
+                    </div>
+                    <div class="service-description">Book Tracking - Production</div>
+                    <div class="service-url">:8007</div>
+                </a>
+
+                <a href="http://100.123.154.40:8008" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🧪</span>
+                        <span class="service-name">GreatReads (Dev)</span>
+                    </div>
+                    <div class="service-description">Book Tracking - Development</div>
+                    <div class="service-url">:8008</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">🔨 Forge Apps</h2>
+            <div class="services">
+                <a href="http://100.123.154.40:8004" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">💪</span>
+                        <span class="service-name">LifeForge</span>
+                    </div>
+                    <div class="service-description">Life Management</div>
+                    <div class="service-url">:8004</div>
+                </a>
+
+                <a href="http://100.123.154.40:8003" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎨</span>
+                        <span class="service-name">ArtForge</span>
+                    </div>
+                    <div class="service-description">Art Projects</div>
+                    <div class="service-url">:8003</div>
+                </a>
+
+                <a href="http://100.123.154.40:8002" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📝</span>
+                        <span class="service-name">WordForge</span>
+                    </div>
+                    <div class="service-description">Writing Projects</div>
+                    <div class="service-url">:8002</div>
+                </a>
+
+                <a href="http://100.123.154.40:8009" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">💻</span>
+                        <span class="service-name">CodeForge</span>
+                    </div>
+                    <div class="service-description">Code Projects</div>
+                    <div class="service-url">:8009</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">📸 Media</h2>
+            <div class="services">
+                <a href="http://100.123.154.40:2283" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📸</span>
+                        <span class="service-name">Immich</span>
+                    </div>
+                    <div class="service-description">Photo & Video Management</div>
+                    <div class="service-url">:2283</div>
+                </a>
+
+                <a href="http://100.123.154.40:8096" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎬</span>
+                        <span class="service-name">Jellyfin</span>
+                    </div>
+                    <div class="service-description">Media Server</div>
+                    <div class="service-url">:8096</div>
+                </a>
+
+                <a href="http://100.123.154.40:5000" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📚</span>
+                        <span class="service-name">Kavita</span>
+                    </div>
+                    <div class="service-description">Book & Comic Reader</div>
+                    <div class="service-url">:5000</div>
+                </a>
+
+                <a href="http://100.123.154.40:13378" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎧</span>
+                        <span class="service-name">Audiobookshelf</span>
+                    </div>
+                    <div class="service-description">Audiobook Server</div>
+                    <div class="service-url">:13378</div>
+                </a>
+
+                <a href="http://100.123.154.40:4533" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎵</span>
+                        <span class="service-name">Navidrome</span>
+                    </div>
+                    <div class="service-description">Music Streaming</div>
+                    <div class="service-url">:4533</div>
+                </a>
+
+                <a href="http://100.123.154.40:8686" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎮</span>
+                        <span class="service-name">Romm</span>
+                    </div>
+                    <div class="service-description">ROM Manager</div>
+                    <div class="service-url">:8686</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">⬇️ Downloads</h2>
+            <div class="services">
+                <a href="http://100.123.154.40:2285" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📥</span>
+                        <span class="service-name">qBittorrent</span>
+                    </div>
+                    <div class="service-description">Torrent Client (via VPN)</div>
+                    <div class="service-url">:2285</div>
+                </a>
+
+                <a href="http://100.123.154.40:9117" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🔍</span>
+                        <span class="service-name">Jackett</span>
+                    </div>
+                    <div class="service-description">Torrent Indexer (via VPN)</div>
+                    <div class="service-url">:9117</div>
+                </a>
+
+                <a href="http://100.123.154.40:8998" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">📺</span>
+                        <span class="service-name">YT-DLP Web</span>
+                    </div>
+                    <div class="service-description">YouTube Downloader</div>
+                    <div class="service-url">:8998</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="category">
+            <h2 class="category-title">🛠️ Tools</h2>
+            <div class="services">
+                <a href="http://100.123.154.40:9091" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎼</span>
+                        <span class="service-name">Beets</span>
+                    </div>
+                    <div class="service-description">Music Library Manager</div>
+                    <div class="service-url">:9091</div>
+                </a>
+
+                <a href="http://100.123.154.40:9999" class="service-card" target="_blank">
+                    <div class="service-header">
+                        <span class="service-icon">🎥</span>
+                        <span class="service-name">Stash</span>
+                    </div>
+                    <div class="service-description">Media Organizer</div>
+                    <div class="service-url">:9999</div>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

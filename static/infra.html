@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Health</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐳</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0a; --card: #1a1a1a; --border: #2a2a2a;
+            --orange: #ff6b35; --white: #e8e8e8; --muted: #888;
+            --green: #34c759; --yellow: #ff9f0a; --red: #ff453a;
+            --ok-bg: rgba(52,199,89,.12); --warn-bg: rgba(255,159,10,.12); --crit-bg: rgba(255,69,58,.12);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--white); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+        /* ── Nav ── */
+        .nav { position: relative; display: flex; align-items: center; gap: 1rem; padding: 1.2rem 2rem; border-bottom: 1px solid var(--border); }
+        .back-btn { color: var(--orange); text-decoration: none; font-size: .9rem; font-weight: 600; display: flex; align-items: center; gap: .4rem; transition: opacity .2s; }
+        .back-btn:hover { opacity: .7; }
+        .nav-title { font-size: 1.1rem; font-weight: 700; letter-spacing: .5px; }
+        .nav-clock { position: absolute; left: 50%; transform: translateX(-50%); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .95rem; color: #f3b08b; letter-spacing: .5px; text-shadow: 0 0 14px rgba(255,107,53,.2); }
+        .last-updated { margin-left: auto; font-size: .78rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: .25rem .65rem; transition: all .3s ease; }
+        .last-updated.fresh { color: #ffe6d9; border-color: rgba(255,107,53,.55); box-shadow: 0 0 18px rgba(255,107,53,.28); background: rgba(255,107,53,.12); }
+        .last-updated-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ffb088; margin-right: .42rem; box-shadow: 0 0 8px rgba(255,107,53,.8); vertical-align: middle; }
+
+        @media (max-width: 760px) {
+            .nav { flex-wrap: wrap; row-gap: .55rem; }
+            .nav-clock { position: static; transform: none; width: 100%; text-align: center; order: 3; font-size: .88rem; }
+            .last-updated { margin-left: 0; }
+        }
+
+        /* ── Banner ── */
+        .banner { margin: 1.5rem 2rem .5rem; padding: 1rem 1.5rem; border-radius: 1rem; border: 1.5px solid; display: flex; align-items: center; gap: .8rem; font-size: 1rem; font-weight: 700; }
+        .banner.ok   { background: var(--ok-bg);   border-color: var(--green);  color: var(--green);  }
+        .banner.warn { background: var(--warn-bg);  border-color: var(--yellow); color: var(--yellow); }
+        .banner.crit { background: var(--crit-bg);  border-color: var(--red);    color: var(--red);    animation: pulse 1.5s infinite; }
+        .banner.unknown { background: rgba(255,255,255,.05); border-color: var(--border); color: var(--muted); }
+        @keyframes pulse { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 18px rgba(255,69,58,.4)} }
+
+        /* ── Sections ── */
+        .section { margin: 1.5rem 2rem; }
+        .section-title { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 1rem; }
+
+        /* ── Metric bars ── */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+        .metric-card { background: var(--card); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem 1.2rem; }
+        .metric-label { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .4rem; }
+        .metric-value { font-size: 1.5rem; font-weight: 700; margin-bottom: .5rem; }
+        .metric-sub   { font-size: .72rem; color: var(--muted); margin-bottom: .6rem; }
+        .bar-track { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; position: relative; }
+        .bar-fill  { height: 100%; border-radius: 999px; transition: width .6s ease; }
+        .bar-fill.ok   { background: var(--green);  }
+        .bar-fill.warn { background: var(--yellow); }
+        .bar-fill.crit { background: var(--red);    }
+        /* threshold tick marks */
+        .bar-ticks { position: relative; height: 0; }
+        .bar-tick  { position: absolute; top: -8px; width: 1px; height: 6px; background: rgba(255,255,255,.25); }
+
+        /* ── Container grid ── */
+        .ctr-categories { display: flex; flex-direction: column; gap: 1rem; }
+        .ctr-category-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .4rem; }
+        .ctr-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+        .ctr-pill { display: flex; align-items: center; gap: .4rem; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem; font-size: .8rem; transition: border-color .2s; }
+        .ctr-pill.ok   { border-color: rgba(52,199,89,.3);  }
+        .ctr-pill.warn { border-color: rgba(255,159,10,.4); }
+        .ctr-pill.crit { border-color: rgba(255,69,58,.4);  }
+        .ctr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .ctr-dot.ok   { background: var(--green);  box-shadow: 0 0 5px var(--green);  }
+        .ctr-dot.warn { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); }
+        .ctr-dot.crit { background: var(--red);    box-shadow: 0 0 5px var(--red);    animation: pulse 1.5s infinite; }
+        .ctr-name  { font-weight: 600; }
+        .ctr-state { font-size: .68rem; color: var(--muted); }
+
+        /* ── Problems list ── */
+        .problems-box { margin: 0 2rem 1rem; padding: 1rem 1.4rem; background: rgba(255,69,58,.08); border: 1.5px solid rgba(255,69,58,.35); border-radius: .75rem; display: none; }
+        .problems-box.visible { display: block; }
+        .problems-box.warn { background: rgba(255,159,10,.08); border-color: rgba(255,159,10,.35); }
+        .problems-header { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: var(--red); margin-bottom: .6rem; display: flex; align-items: center; gap: .4rem; }
+        .problems-box.warn .problems-header { color: var(--yellow); }
+        .problems-list { list-style: none; display: flex; flex-direction: column; gap: .35rem; }
+        .problems-list li { font-size: .85rem; display: flex; align-items: center; gap: .5rem; color: var(--white); }
+        .problems-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+        .problems-box.warn .problems-list li::before { background: var(--yellow); }
+
+        /* ── Resource pie charts ── */
+        .pie-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .pie-card { background: var(--card); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem; display: flex; flex-direction: column; align-items: center; }
+        .pie-title { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .8rem; align-self: flex-start; }
+        .pie-canvas { width: 100% !important; max-height: 220px !important; }
+        @media (max-width: 800px) { .pie-grid { grid-template-columns: 1fr; } }
+
+        /* ── History charts ── */
+        .chart-tabs { display: flex; gap: .4rem; margin-bottom: 1rem; }
+        .chart-tab { background: var(--card); border: 1px solid var(--border); border-radius: .5rem; padding: .3rem .8rem; font-size: .75rem; font-weight: 600; cursor: pointer; color: var(--muted); transition: all .2s; }
+        .chart-tab.active { border-color: var(--orange); color: var(--orange); }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem; }
+        .chart-title { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .8rem; }
+        .chart-canvas { width: 100% !important; height: 160px !important; }
+        @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        /* ── Extended Ops sections ── */
+        .ops-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: .65rem; }
+        .ops-card { background: var(--card); border: 1px solid var(--border); border-radius: .75rem; padding: .7rem .85rem; }
+        .ops-card h4 { font-size: .78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .55rem; }
+        .ops-list { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+        .ops-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .85rem; }
+        .ops-left { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; }
+        .ops-left .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tag { font-size: .65rem; text-transform: uppercase; letter-spacing: .9px; padding: .15rem .45rem; border-radius: 999px; border: 1px solid var(--border); }
+        .tag.ok { color: var(--green); border-color: rgba(52,199,89,.4); background: rgba(52,199,89,.12); }
+        .tag.warn { color: var(--yellow); border-color: rgba(255,159,10,.45); background: rgba(255,159,10,.12); }
+        .tag.crit { color: var(--red); border-color: rgba(255,69,58,.45); background: rgba(255,69,58,.12); }
+        .tag.unknown { color: var(--muted); }
+
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: .75rem; }
+        .ops-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+        .ops-table th, .ops-table td { padding: .55rem .65rem; border-bottom: 1px solid #222; font-size: .82rem; text-align: left; vertical-align: top; }
+        .ops-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem; color: #b9b9b9; }
+        .soft { color: var(--muted); font-size: .75rem; }
+
+        .empty-note { color: var(--muted); font-size: .83rem; padding: .5rem 0; }
+    </style>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="/" class="back-btn"><i class="fas fa-arrow-left"></i> Dashboard</a>
+    <span class="nav-title"><i class="fas fa-heartbeat" style="color:var(--orange)"></i> Server Health</span>
+    <span class="nav-clock" id="nav-clock">--:--:--</span>
+    <span class="last-updated" id="last-updated"><span class="last-updated-dot"></span>Updated --:--:--</span>
+</nav>
+
+<div id="banner" class="banner unknown">
+    <i class="fas fa-circle-notch fa-spin"></i> Loading&hellip;
+</div>
+
+<!-- Problems detail — only shown when overall != ok -->
+<div id="problems-box" class="problems-box">
+    <div class="problems-header"><i class="fas fa-exclamation-circle"></i> <span id="problems-header-text">Issues detected</span></div>
+    <ul class="problems-list" id="problems-list"></ul>
+</div>
+
+<!-- Server Metrics -->
+<div class="section">
+    <div class="section-title">Server Metrics</div>
+    <div class="metrics-grid" id="metrics-grid"></div>
+</div>
+
+<!-- Resource Consumers -->
+<div class="section">
+    <div class="section-title">Resource Consumers</div>
+    <div class="pie-grid">
+        <div class="pie-card"><div class="pie-title">CPU usage by container</div><canvas id="chart-cpu-pie" class="pie-canvas"></canvas></div>
+        <div class="pie-card"><div class="pie-title">Memory usage by container</div><canvas id="chart-mem-pie" class="pie-canvas"></canvas></div>
+    </div>
+</div>
+
+<!-- Container Status -->
+<div class="section">
+    <div class="section-title">Container Status</div>
+    <div class="ctr-categories" id="ctr-categories"></div>
+</div>
+
+<!-- Git Repositories -->
+<div class="section">
+    <div class="section-title">Git Repositories</div>
+    <div class="table-wrap">
+        <table class="ops-table">
+            <thead>
+                <tr>
+                    <th>Repository</th>
+                    <th>Branch</th>
+                    <th>Status</th>
+                    <th>Sync</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="repos-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Automation -->
+<div class="section">
+    <div class="section-title">Cron Jobs &amp; Automation</div>
+    <div class="ops-card" style="margin-bottom:.7rem;">
+        <h4>Cron Jobs</h4>
+        <div class="table-wrap">
+            <table class="ops-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Schedule</th>
+                        <th>Last Run</th>
+                        <th>Next Run</th>
+                        <th>Status</th>
+                        <th>Command</th>
+                        <th>Log Location</th>
+                    </tr>
+                </thead>
+                <tbody id="cron-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="ops-card">
+        <h4>Systemd Timers</h4>
+        <ul id="timers-list" class="ops-list"></ul>
+    </div>
+</div>
+
+<!-- Storage, Network, Docker, Host Config -->
+<div class="section">
+    <div class="section-title">Ops Overview</div>
+    <div class="ops-grid">
+        <div class="ops-card">
+            <h4>Mounted Disks</h4>
+            <ul id="mounts-list" class="ops-list"></ul>
+        </div>
+        <div class="ops-card">
+            <h4>Network Health</h4>
+            <ul id="network-list" class="ops-list"></ul>
+        </div>
+        <div class="ops-card">
+            <h4>Docker Hygiene</h4>
+            <ul id="docker-list" class="ops-list"></ul>
+        </div>
+        <div class="ops-card">
+            <h4>Host Config &amp; Proxmox</h4>
+            <ul id="host-list" class="ops-list"></ul>
+        </div>
+    </div>
+</div>
+
+<!-- History Charts -->
+<div class="section">
+    <div class="section-title">History</div>
+    <div class="chart-tabs" id="chart-tabs">
+        <button class="chart-tab" data-hours="6">6h</button>
+        <button class="chart-tab active" data-hours="24">24h</button>
+        <button class="chart-tab" data-hours="72">3d</button>
+        <button class="chart-tab" data-hours="168">7d</button>
+    </div>
+    <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">CPU &amp; RAM &amp; Swap</div><canvas id="chart-resources" class="chart-canvas"></canvas></div>
+        <div class="chart-card"><div class="chart-title">Disk Usage</div><canvas id="chart-disks" class="chart-canvas"></canvas></div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const SEV_LABEL = { ok: 'OK', warn: 'WARNING', crit: 'ISSUE', unknown: 'UNKNOWN' };
+const BANNER_TEXT = {
+    ok:      { icon: 'fa-check-circle',        msg: 'All systems nominal — everything looks good.' },
+    warn:    { icon: 'fa-exclamation-triangle', msg: 'Warning — some metrics or services need attention.' },
+    crit:    { icon: 'fa-times-circle',         msg: 'Issue detected — immediate attention recommended.' },
+    unknown: { icon: 'fa-circle-notch fa-spin', msg: 'Loading\u2026' },
+};
+
+function setBanner(overall) {
+    const el = $('banner');
+    const b = BANNER_TEXT[overall] || BANNER_TEXT.unknown;
+    el.className = `banner ${overall}`;
+    el.innerHTML = `<i class="fas ${b.icon}"></i> ${b.msg}`;
+}
+
+function fmtMB(mb) {
+    return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB';
+}
+
+function sevTag(sev) {
+    const cls = (sev || 'unknown');
+    const text = SEV_LABEL[cls] || 'UNKNOWN';
+    return `<span class="tag ${cls}">${text}</span>`;
+}
+
+// ── Metrics ───────────────────────────────────────────────────────────────────
+function renderMetrics(snap) {
+    const metrics = [
+        { key: 'cpu',         label: 'CPU',         val: snap.cpu.pct + '%',
+          sub: '',            pct: snap.cpu.pct,    sev: snap.cpu.severity },
+        { key: 'ram',         label: 'RAM',
+          val: fmtMB(snap.ram.used_mb),
+          sub: 'of ' + fmtMB(snap.ram.total_mb),
+          pct: snap.ram.pct, sev: snap.ram.severity },
+        { key: 'swap',        label: 'Swap',
+          val: fmtMB(snap.swap.used_mb),
+          sub: 'of ' + fmtMB(snap.swap.total_mb),
+          pct: snap.swap.pct, sev: snap.swap.severity },
+        { key: 'docker_disk', label: 'Docker Disk',
+          val: snap.docker_disk.used_gb + ' GB',
+          sub: 'of ' + snap.docker_disk.total_gb + ' GB',
+          pct: snap.docker_disk.pct, sev: snap.docker_disk.severity },
+        { key: 'nas_disk',    label: 'NAS (boston)',
+          val: snap.nas_disk.used_gb + ' GB',
+          sub: 'of ' + snap.nas_disk.total_gb + ' GB',
+          pct: snap.nas_disk.pct, sev: snap.nas_disk.severity },
+    ];
+    const t = snap.thresholds;
+    $('metrics-grid').innerHTML = metrics.map(m => {
+        const th = t[m.key] || {};
+        const warnTick = th.warn ? `<div class="bar-tick" style="left:${th.warn}%"></div>` : '';
+        const critTick = th.crit ? `<div class="bar-tick" style="left:${th.crit}%"></div>` : '';
+        return `<div class="metric-card">
+          <div class="metric-label">${m.label}</div>
+          <div class="metric-value" style="color:var(--${m.sev === 'ok' ? 'white' : m.sev === 'warn' ? 'yellow' : 'red'})">${m.val}</div>
+          ${m.sub ? `<div class="metric-sub">${m.sub}</div>` : ''}
+          <div class="bar-ticks">${warnTick}${critTick}</div>
+          <div class="bar-track"><div class="bar-fill ${m.sev}" style="width:${Math.min(m.pct,100)}%"></div></div>
+        </div>`;
+    }).join('');
+}
+
+// ── Problems list ─────────────────────────────────────────────────────────────
+function renderProblems(snap) {
+    const box      = $('problems-box');
+    const listEl   = $('problems-list');
+    const headerEl = $('problems-header-text');
+    const problems = [];
+
+    // Resource issues
+    const metricLabels = { cpu: 'CPU', ram: 'RAM', swap: 'Swap', docker_disk: 'Docker disk', nas_disk: 'NAS disk' };
+    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nas_disk','nas_disk']].forEach(([key, sk]) => {
+        const m = snap[key];
+        if (m && m.severity && m.severity !== 'ok') {
+            problems.push(`${metricLabels[sk]} at ${m.pct}% — ${m.severity === 'crit' ? 'critical' : 'elevated'}`);
+        }
+    });
+
+    // Container issues
+    (snap.containers || []).forEach(c => {
+        if      (c.state === 'missing')    problems.push(`${c.label} — not found (container missing)`);
+        else if (c.state === 'stopped')    problems.push(`${c.label} — stopped`);
+        else if (c.health === 'unhealthy') problems.push(`${c.label} — running but health check failing`);
+        else if (c.health === 'starting')  problems.push(`${c.label} — health check still starting`);
+    });
+
+    if (problems.length === 0) {
+        box.classList.remove('visible');
+        return;
+    }
+    const isCrit = snap.overall === 'crit';
+    box.className = `problems-box visible${isCrit ? '' : ' warn'}`;
+    headerEl.textContent = `${problems.length} issue${problems.length > 1 ? 's' : ''} detected`;
+    listEl.innerHTML = problems.map(p => `<li>${p}</li>`).join('');
+}
+
+// ── Pie charts ────────────────────────────────────────────────────────────────
+const PIE_PALETTE = [
+    '#ff6b35','#30b0ff','#34c759','#bf5af2','#ff9f0a',
+    '#ff453a','#64d2ff','#ffd60a','#ff375f','#30d158',
+    '#5e5ce6','#ac8e68','#6ac4dc','#63e6be','#f06595',
+];
+
+let chartCpuPie = null, chartMemPie = null;
+
+function buildPies(stats) {
+    if (!stats || stats.length === 0) return;
+
+    const TOP = 9;  // show top N individually, rest as "Other"
+
+    function makePieData(field) {
+        const sorted = [...stats].sort((a, b) => b[field] - a[field]);
+        const top    = sorted.slice(0, TOP);
+        const rest   = sorted.slice(TOP).reduce((s, x) => s + x[field], 0);
+        const labels = top.map(x => x.name);
+        const data   = top.map(x => x[field]);
+        if (rest > 0.01) { labels.push('Other'); data.push(parseFloat(rest.toFixed(2))); }
+        return { labels, data };
+    }
+
+    const pieCfg = (labels, data, unit) => ({
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{ data, backgroundColor: PIE_PALETTE.slice(0, labels.length),
+                         borderColor: '#111', borderWidth: 2, hoverOffset: 6 }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: true, animation: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: '#aaa', boxWidth: 12, font: { size: 11 }, padding: 10 } },
+                tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}${unit}` } },
+            },
+        },
+    });
+
+    const cpu = makePieData('cpu_pct');
+    const mem = makePieData('mem_pct');
+
+    if (chartCpuPie) chartCpuPie.destroy();
+    if (chartMemPie) chartMemPie.destroy();
+    chartCpuPie = new Chart($('chart-cpu-pie'), pieCfg(cpu.labels, cpu.data, '%'));
+    chartMemPie = new Chart($('chart-mem-pie'), pieCfg(mem.labels, mem.data, '%'));
+}
+
+// ── Containers ────────────────────────────────────────────────────────────────
+function ctrSev(c) {
+    if (c.state === 'missing' || c.state === 'stopped') return 'crit';
+    if (c.health === 'unhealthy') return 'warn';
+    return 'ok';
+}
+function ctrStateLabel(c) {
+    if (c.state === 'missing') return 'missing';
+    if (c.state === 'stopped') return 'stopped';
+    if (c.health === 'unhealthy') return 'unhealthy';
+    if (c.health === 'starting') return 'starting';
+    return 'running';
+}
+
+function renderContainers(containers) {
+    const groups = {};
+    containers.forEach(c => {
+        if (!groups[c.category]) groups[c.category] = [];
+        groups[c.category].push(c);
+    });
+    $('ctr-categories').innerHTML = Object.entries(groups).map(([cat, ctrs]) => `
+        <div>
+          <div class="ctr-category-label">${cat}</div>
+          <div class="ctr-row">
+            ${ctrs.map(c => {
+                const sev = ctrSev(c);
+                const lbl = ctrStateLabel(c);
+                return `<div class="ctr-pill ${sev}" title="${c.raw_status || lbl}">
+                  <div class="ctr-dot ${sev}"></div>
+                  <span class="ctr-name">${c.label}</span>
+                  ${sev !== 'ok' ? `<span class="ctr-state">${lbl}</span>` : ''}
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`
+    ).join('');
+}
+
+// ── Extended Ops panels ─────────────────────────────────────────────────────
+function renderRepos(data) {
+    const tbody = $('repos-tbody');
+    const repos = (data && data.repos) || [];
+    if (repos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="soft">No repository data available.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = repos.map(r => {
+        const sync = (r.ahead || r.behind)
+            ? `+${r.ahead || 0} / -${r.behind || 0}`
+            : '0 / 0';
+        return `<tr>
+            <td><div>${r.name}</div><div class="mono">${r.path}</div></td>
+            <td>${r.branch || '<span class="soft">n/a</span>'}</td>
+            <td>${sevTag(r.severity)} <span class="soft" style="margin-left:.4rem">${(r.state || '').replace(/_/g, ' ').toUpperCase()}</span></td>
+            <td class="mono">${sync}</td>
+            <td>${r.summary || ''}${r.conflicts ? `<div class="soft">conflicts: ${r.conflicts}</div>` : ''}${r.dirty_files ? `<div class="soft">dirty files: ${r.dirty_files}</div>` : ''}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderCronTable(entries) {
+    const tbody = $('cron-tbody');
+    if (!entries || entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="soft">No cron entries discovered.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = entries.map(e => {
+        const lastRun = e.last_seen ? new Date(e.last_seen).toLocaleString() : 'No logs found';
+        const nextRun = e.next_run ? new Date(e.next_run).toLocaleString() : 'n/a';
+        const statusText = e.script_exists === false
+            ? 'WARNING: Script missing'
+            : (e.last_seen ? 'OK' : 'WARNING: No logs found');
+        const effectiveSev = (e.last_seen || e.script_exists === false) ? (e.severity || 'unknown') : 'warn';
+        const source = e.source ? `<div class="soft">source: ${e.source}</div>` : '';
+        return `<tr>
+            <td>${e.description || 'Scheduled task'}</td>
+            <td>${e.schedule_human || e.schedule || 'n/a'}</td>
+            <td>${lastRun}</td>
+            <td>${nextRun}</td>
+            <td>${sevTag(effectiveSev)} <span class="soft" style="margin-left:.4rem">${statusText}</span></td>
+            <td class="mono">${e.command || ''}${source}</td>
+            <td class="mono">${e.log_path || 'No log location detected'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderAutomation(data) {
+    renderCronTable(data.cron || []);
+
+    const timers = data.timers || [];
+    const timersEl = $('timers-list');
+    if (timers.length === 0) {
+        timersEl.innerHTML = '<li class="empty-note">No systemd timer data available from this runtime.</li>';
+    } else {
+        timersEl.innerHTML = timers.slice(0, 20).map(t => `<li class="ops-row"><div class="ops-left"><span class="name">${t.unit}</span></div><div>${sevTag(t.severity || 'ok')}</div></li><li class="soft mono">${t.raw}</li>`).join('');
+    }
+}
+
+function renderMounts(data) {
+    const el = $('mounts-list');
+    const mounts = data.mounts || [];
+    if (mounts.length === 0) {
+        el.innerHTML = '<li class="empty-note">No mount inventory available.</li>';
+        return;
+    }
+    el.innerHTML = mounts.slice(0, 20).map(m => `<li class="ops-row"><div class="ops-left"><span class="name">${m.mountpoint}</span><span class="soft">${m.used_gb} / ${m.total_gb} GB</span></div><div>${sevTag(m.severity)}</div></li><li class="soft mono">${m.device} (${m.fstype}) - ${m.pct}% used</li>`).join('');
+}
+
+function renderNetwork(data) {
+    const el = $('network-list');
+    const mbps = bps => bps == null ? 'n/a' : `${(bps * 8 / 1_000_000).toFixed(2)} Mbps`;
+    const probeMbps = data.probe?.download_bytes_per_s ? `${(data.probe.download_bytes_per_s * 8 / 1_000_000).toFixed(2)} Mbps` : 'n/a';
+    const rows = [
+        { name: 'Internet', val: data.internet_up ? 'Reachable' : 'Down', sev: data.internet_up ? 'ok' : 'crit' },
+        { name: 'DNS', val: data.dns_ok ? 'OK' : 'Failing', sev: data.dns_ok ? 'ok' : 'crit' },
+        { name: 'Ping 1.1.1.1', val: data.ping_ms != null ? `${data.ping_ms} ms` : 'n/a', sev: data.ping_ms != null ? (data.ping_ms > 120 ? 'warn' : 'ok') : 'warn' },
+        { name: 'HTTP Probe', val: data.probe?.ok ? `connect ${(data.probe.connect_s || 0).toFixed(3)}s, ttfb ${(data.probe.ttfb_s || 0).toFixed(3)}s` : 'probe unavailable', sev: data.probe?.ok ? 'ok' : 'warn' },
+        { name: 'Probe Throughput', val: probeMbps, sev: data.probe?.ok ? 'ok' : 'warn' },
+        { name: 'Live RX/TX', val: `${mbps(data.rx_bytes_per_s)} down / ${mbps(data.tx_bytes_per_s)} up`, sev: 'ok' },
+        { name: 'Default Route', val: data.default_route || 'n/a', sev: data.default_route ? 'ok' : 'warn' },
+        { name: 'Tailscale', val: data.tailscale?.backend_state || (data.tailscale?.available ? 'unknown' : 'not installed'), sev: data.tailscale?.severity || 'warn' },
+        { name: 'Mullvad VPN', val: `${data.mullvad?.name || 'mullvad-vpn'}: ${data.mullvad?.state || 'unknown'}${data.mullvad?.health ? ` / ${data.mullvad.health}` : ''}`, sev: data.mullvad?.severity || 'warn' },
+    ];
+    let html = rows.map(r => `<li class="ops-row"><div class="ops-left"><span class="name">${r.name}</span><span class="soft">${r.val}</span></div><div>${sevTag(r.sev)}</div></li>`).join('');
+    if (data.interfaces && data.interfaces.length) {
+        html += `<li class="soft">Interfaces:</li>`;
+        html += data.interfaces.map(i => `<li class="soft mono">${i.name}: ${i.addr}</li>`).join('');
+    }
+    el.innerHTML = html;
+}
+
+function renderDockerSummary(data) {
+    const el = $('docker-list');
+    const rows = [
+        { name: 'Running Containers', val: `${data.containers_running || 0} / ${data.containers_total || 0}`, sev: 'ok' },
+        { name: 'Images', val: `${data.images_total || 0}`, sev: 'ok' },
+        { name: 'Dangling Images', val: `${data.dangling_images || 0}`, sev: (data.dangling_images || 0) > 20 ? 'warn' : 'ok' },
+        { name: 'Dangling Volumes', val: `${data.dangling_volumes || 0}`, sev: (data.dangling_volumes || 0) > 20 ? 'warn' : 'ok' },
+        { name: 'Reclaimable', val: data.reclaimable_summary || 'n/a', sev: data.reclaimable_summary ? 'warn' : 'ok' },
+    ];
+    el.innerHTML = rows.map(r => `<li class="ops-row"><div class="ops-left"><span class="name">${r.name}</span><span class="soft">${r.val}</span></div><div>${sevTag(r.sev)}</div></li>`).join('');
+}
+
+function renderHostAndProxmox(hostCfg, proxmox) {
+    const el = $('host-list');
+    const rows = [
+        { name: 'fstab', val: `${hostCfg.fstab_entries || 0} entries${hostCfg.fstab_path ? ` (${hostCfg.fstab_path})` : ''}`, sev: hostCfg.severity || 'warn' },
+        { name: 'iptables', val: hostCfg.iptables_available ? `rules: ${hostCfg.iptables_rules ?? 'n/a'}` : 'not available in runtime', sev: hostCfg.iptables_error ? 'warn' : (hostCfg.iptables_available ? 'ok' : 'warn') },
+        { name: 'Proxmox Backup Visibility', val: proxmox.summary || 'not configured', sev: proxmox.severity || 'warn' },
+    ];
+    let html = rows.map(r => `<li class="ops-row"><div class="ops-left"><span class="name">${r.name}</span><span class="soft">${r.val}</span></div><div>${sevTag(r.sev)}</div></li>`).join('');
+    if (hostCfg.iptables_error) {
+        html += `<li class="soft">iptables detail: ${hostCfg.iptables_error}</li>`;
+    }
+    if (hostCfg.fstab_mounts && hostCfg.fstab_mounts.length) {
+        html += `<li class="soft">fstab mount health:</li>`;
+        html += hostCfg.fstab_mounts.map(m => `<li class="soft mono">${m.mountpoint} (${m.fstype}) - ${m.mounted ? 'mounted' : 'not mounted'}</li>`).join('');
+    }
+    if (proxmox.backups && proxmox.backups.length) {
+        html += `<li class="soft">Latest backups:</li>`;
+        html += proxmox.backups.slice(0, 8).map(b => `<li class="soft mono">${b}</li>`).join('');
+    }
+    if (proxmox.mounts && proxmox.mounts.length) {
+        html += `<li class="soft">Proxmox mount utilization:</li>`;
+        html += proxmox.mounts.slice(0, 5).map(m => `<li class="soft mono">${m.target}: ${m.pcent} used (${m.used}/${m.size})</li>`).join('');
+    }
+    el.innerHTML = html;
+}
+
+function startClock() {
+    const el = $('nav-clock');
+    const tick = () => {
+        el.textContent = new Date().toLocaleTimeString();
+    };
+    tick();
+    setInterval(tick, 1000);
+}
+
+function refreshExtended() {
+    fetch(`/api/infra/extended?_=${Date.now()}`)
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(ext => {
+            renderRepos(ext.repos || {});
+            renderAutomation(ext.automation || {});
+            renderMounts(ext.disks || {});
+            renderNetwork(ext.network || {});
+            renderDockerSummary(ext.docker || {});
+            renderHostAndProxmox(ext.host_config || {}, ext.proxmox || {});
+        })
+        .catch(e => console.warn('Extended status fetch failed', e));
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+const CHART_CFG = {
+    type: 'line',
+    options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#888', boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } } },
+        scales: {
+            x: { type: 'time', ticks: { color: '#666', maxRotation: 0, font: { size: 10 } }, grid: { color: '#222' } },
+            y: { min: 0, max: 100, ticks: { color: '#666', callback: v => v + '%', font: { size: 10 } }, grid: { color: '#222' } },
+        },
+    },
+};
+
+let chartRes = null, chartDsk = null;
+
+function mkDataset(label, color, data) {
+    return { label, borderColor: color, backgroundColor: color + '22', borderWidth: 1.5,
+             pointRadius: 0, tension: 0.3, fill: false, data };
+}
+
+function buildCharts(rows) {
+    const ts    = rows.map(r => r.ts * 1000);
+    const cpu   = rows.map((r, i) => ({ x: ts[i], y: r.cpu_pct }));
+    const ram   = rows.map((r, i) => ({ x: ts[i], y: r.ram_pct }));
+    const swap  = rows.map((r, i) => ({ x: ts[i], y: r.swap_pct }));
+    const ddisk = rows.map((r, i) => ({ x: ts[i], y: r.docker_disk_pct }));
+    const ndisk = rows.map((r, i) => ({ x: ts[i], y: r.nas_disk_pct }));
+
+    const resCfg = JSON.parse(JSON.stringify(CHART_CFG));
+    resCfg.data  = { datasets: [mkDataset('CPU', '#ff6b35', cpu), mkDataset('RAM', '#30b0ff', ram), mkDataset('Swap', '#bf5af2', swap)] };
+    const dskCfg = JSON.parse(JSON.stringify(CHART_CFG));
+    dskCfg.data  = { datasets: [mkDataset('Docker disk', '#34c759', ddisk), mkDataset('NAS disk', '#ff9f0a', ndisk)] };
+
+    if (chartRes) chartRes.destroy();
+    if (chartDsk) chartDsk.destroy();
+    chartRes = new Chart($('chart-resources'), resCfg);
+    chartDsk = new Chart($('chart-disks'),     dskCfg);
+}
+
+function loadHistory(hours) {
+    fetch(`/api/infra/history?hours=${hours}`)
+        .then(r => r.json())
+        .then(rows => buildCharts(rows))
+        .catch(e => console.warn('History fetch failed', e));
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+let activeHours = 24;
+$('chart-tabs').addEventListener('click', e => {
+    const btn = e.target.closest('.chart-tab');
+    if (!btn) return;
+    document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeHours = parseInt(btn.dataset.hours, 10);
+    loadHistory(activeHours);
+});
+
+// ── Main polling loop ─────────────────────────────────────────────────────────
+function refresh() {
+    fetch('/api/infra/status')
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(snap => {
+            setBanner(snap.overall || 'unknown');
+            renderProblems(snap);
+            renderMetrics(snap);
+            renderContainers(snap.containers || []);
+            buildPies(snap.container_stats || []);
+            const upd = $('last-updated');
+            upd.innerHTML = `<span class="last-updated-dot"></span>Updated ${new Date().toLocaleTimeString()}`;
+            upd.classList.remove('fresh');
+            requestAnimationFrame(() => upd.classList.add('fresh'));
+        })
+        .catch(() => setBanner('unknown'));
+}
+
+startClock();
+refresh();
+refreshExtended();
+loadHistory(activeHours);
+setInterval(refresh, 15_000);
+setInterval(refreshExtended, 20_000);
+setInterval(() => loadHistory(activeHours), 60_000);
+</script>
+</body>
+</html>
+

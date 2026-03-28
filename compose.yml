@@ -1,0 +1,59 @@
+name: dashboard
+
+services:
+  dashboard:
+    container_name: dashboard
+    build: .
+    restart: unless-stopped
+    network_mode: host
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/brandon/projects:/home/brandon/projects:ro
+      - dashboard_data:/app/data
+      # Read-only disk mounts so the health page can report real usage
+      - /mnt/docker:/mnt/docker:ro
+      - /mnt/boston:/mnt/boston:ro
+      # Host config and automation visibility (read-only)
+      - /etc/fstab:/host_etc/fstab:ro
+      - /etc/crontab:/host_etc/crontab:ro
+      - /etc/cron.d:/host_etc/cron.d:ro
+      - /var/spool/cron:/host_var_spool_cron:ro
+      - /var/log:/host_var_log:ro
+      - /home/brandon/.ssh:/root/.ssh:ro
+
+    environment:
+      - TZ=America/New_York
+      - FLASK_ENV=production
+      # API keys for library scanning - configure these to enable scan buttons
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      - AUDIOBOOKSHELF_API_TOKEN=${AUDIOBOOKSHELF_API_TOKEN:-}
+      - STASH_API_KEY=${STASH_API_KEY:-}
+      - PROXMOX_SSH_HOST=${PROXMOX_SSH_HOST:-10.0.0.159}
+      - PROXMOX_SSH_USER=${PROXMOX_SSH_USER:-root}
+      - PROXMOX_SSH_PASSWORD=${PROXMOX_SSH_PASSWORD:-}
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 96M
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dashboard_data:
+
+networks:
+  default:
+    name: dashboard_network
+

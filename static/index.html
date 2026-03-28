@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐳 Docker Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐳</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-orange: #FF9500;
+            --dark-orange: #E67E00;
+            --light-orange: #FFB84D;
+            --black: #0A0A0A;
+            --dark-gray: #1A1A1A;
+            --medium-gray: #2A2A2A;
+            --light-gray: #CCCCCC;
+            --white: #FFFFFF;
+            --off-white: #F5F5F5;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --glow: 0 0 20px rgba(255, 149, 0, 0.3);
+        }
+
+        /* Top-left cluster */
+        .health-wrapper {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            z-index: 1001;
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 0.4rem;
+        }
+
+        /* Top-right cluster: bookmarks only */
+        .bookmarks-wrapper {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.5rem;
+        }
+
+        .top-nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        /* Server Health nav button */
+        .health-nav-btn {
+            background: linear-gradient(135deg, var(--dark-gray) 0%, var(--medium-gray) 100%);
+            border: 2px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            padding: 0.6rem 0.9rem;
+            color: var(--primary-orange);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .health-nav-btn span {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .health-nav-btn:hover {
+            border-color: var(--primary-orange);
+            box-shadow: var(--glow);
+            color: var(--white);
+        }
+
+        .health-nav-btn.ok {
+            border-color: rgba(52, 199, 89, 0.8);
+            color: #34c759;
+            box-shadow: 0 0 14px rgba(52, 199, 89, 0.25);
+        }
+
+        .health-nav-btn.warn {
+            border-color: rgba(255, 159, 10, 0.85);
+            color: #ff9f0a;
+            box-shadow: 0 0 14px rgba(255, 159, 10, 0.25);
+        }
+
+        .health-nav-btn.crit {
+            border-color: rgba(255, 69, 58, 0.9);
+            color: #ff453a;
+            box-shadow: 0 0 16px rgba(255, 69, 58, 0.3);
+            animation: badge-pulse 1.5s infinite;
+        }
+
+        .health-nav-btn.unknown {
+            border-color: var(--medium-gray);
+            color: var(--primary-orange);
+        }
+
+        @keyframes badge-pulse {
+            0%, 100% { box-shadow: none; }
+            50%       { box-shadow: 0 0 10px rgba(255,69,58,0.6); }
+        }
+
+        .bookmarks-btn {
+            background: linear-gradient(135deg, var(--dark-gray) 0%, var(--medium-gray) 100%);
+            border: 2px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            padding: 0.6rem 0.9rem;
+            color: var(--primary-orange);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .bookmarks-btn:hover, .bookmarks-btn.active {
+            border-color: var(--primary-orange);
+            box-shadow: var(--glow);
+            color: var(--white);
+        }
+
+        .bookmarks-btn span {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .bm-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            width: 300px;
+            max-height: 70vh;
+            overflow-y: auto;
+            background: var(--dark-gray);
+            border: 1px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            padding: 0.5rem 0;
+        }
+
+        .bm-dropdown.open { display: block; }
+
+        .bm-dropdown::-webkit-scrollbar { width: 6px; }
+        .bm-dropdown::-webkit-scrollbar-track { background: transparent; }
+        .bm-dropdown::-webkit-scrollbar-thumb { background: var(--medium-gray); border-radius: 3px; }
+
+        .bm-tree { list-style: none; padding: 0; margin: 0; }
+        .bm-tree ul { list-style: none; padding-left: 1rem; margin: 0; }
+
+        .bm-tree-item { margin: 0; }
+
+        .bm-tree-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.1rem 0.75rem;
+            cursor: pointer;
+            transition: background 0.12s;
+            color: var(--off-white);
+            text-decoration: none;
+            font-size: 0.88rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .bm-tree-row:hover { background: var(--medium-gray); }
+
+        .bm-tree-row i.folder-icon { color: var(--primary-orange); width: 1rem; text-align: center; flex-shrink: 0; }
+        .bm-tree-row i.toggle-icon { width: 0.8rem; text-align: center; flex-shrink: 0; color: var(--light-gray); font-size: 0.65rem; }
+
+        .bm-tree-name { overflow: hidden; text-overflow: ellipsis; }
+
+        .bm-tree-item.collapsed > ul { display: none; }
+
+        .bm-divider { height: 1px; background: var(--medium-gray); margin: 0.2rem 0; }
+
+        .bm-manage-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0.75rem;
+            color: var(--primary-orange);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.12s;
+        }
+        .bm-manage-link:hover { background: var(--medium-gray); color: var(--white); }
+
+        .bm-empty {
+            padding: 1.5rem 0.75rem;
+            text-align: center;
+            color: var(--light-gray);
+            font-size: 0.85rem;
+        }
+        .bm-empty i { display: block; font-size: 1.5rem; color: var(--medium-gray); margin-bottom: 0.5rem; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--black) 0%, var(--dark-gray) 50%, var(--black) 100%);
+            min-height: 100vh;
+            padding: 1.5rem;
+            color: var(--off-white);
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--white);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 2.5rem;
+            text-shadow: 0 0 20px rgba(255, 149, 0, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 900;
+        }
+
+        .category {
+            margin-bottom: 1.5rem;
+        }
+
+        .category-title {
+            color: var(--white);
+            font-size: 1.3rem;
+            margin-bottom: 0.75rem;
+            padding-left: 0.75rem;
+            border-left: 4px solid var(--primary-orange);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .service-card {
+            background: linear-gradient(135deg, var(--dark-gray) 0%, var(--medium-gray) 100%);
+            border: 2px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-orange), var(--dark-orange));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .service-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-orange);
+            box-shadow: var(--glow);
+        }
+
+        .service-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+
+        .service-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .service-icon {
+            font-size: 1.75rem;
+            margin-right: 0.75rem;
+            color: var(--primary-orange);
+        }
+
+        .service-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--white);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .service-description {
+            color: var(--light-gray);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .service-url {
+            color: var(--primary-orange);
+            font-size: 0.8rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .service-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            gap: 0.5rem;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+        }
+
+        .action-btn i {
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .restart-btn {
+            background-color: transparent;
+            color: var(--primary-orange);
+            border: 1px solid var(--primary-orange);
+        }
+
+        .restart-btn:hover:not(:disabled) {
+            background-color: var(--primary-orange);
+            color: var(--black);
+        }
+
+        .recreate-btn {
+            background-color: transparent;
+            color: var(--light-orange);
+            border: 1px solid var(--light-orange);
+        }
+
+        .recreate-btn:hover:not(:disabled) {
+            background-color: var(--light-orange);
+            color: var(--black);
+        }
+
+        .scan-btn {
+            background-color: transparent;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .scan-btn:hover:not(:disabled) {
+            background-color: #4CAF50;
+            color: var(--black);
+        }
+
+        .download-btn {
+            background-color: transparent;
+            color: #2196F3;
+            border: 1px solid #2196F3;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background-color: #2196F3;
+            color: var(--black);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .action-btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--primary-orange);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--medium-gray);
+            color: var(--white);
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid var(--primary-orange);
+            box-shadow: var(--shadow);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            border-left-color: #f44336;
+        }
+
+        .toast.success {
+            border-left-color: #4CAF50;
+        }
+
+        .reconnect-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .reconnect-overlay.active {
+            display: flex;
+        }
+
+        .reconnect-content {
+            text-align: center;
+            color: var(--off-white);
+        }
+
+        .reconnect-icon {
+            font-size: 3rem;
+            color: var(--primary-orange);
+            margin-bottom: 1rem;
+        }
+
+        .reconnect-content h2 {
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        .reconnect-content p {
+            color: var(--light-gray);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 600px) {
+            .health-wrapper {
+                top: 0.75rem;
+                left: 0.75rem;
+            }
+            .health-nav-btn span {
+                display: none;
+            }
+            .bookmarks-wrapper {
+                top: 0.75rem;
+                right: 0.75rem;
+            }
+            .bookmarks-btn span {
+                display: none;
+            }
+            .bookmarks-btn {
+                padding: 0.5rem 0.7rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+                padding-left: 3rem;
+                padding-right: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top-left: Server Health button -->
+    <div class="health-wrapper">
+        <a href="/server-health" id="health-nav-btn" class="health-nav-btn unknown" title="Server Health">
+            <i class="fas fa-heartbeat"></i>
+            <span>Server Health</span>
+        </a>
+    </div>
+
+    <!-- Top-right: Bookmarks -->
+    <div class="bookmarks-wrapper">
+        <button class="bookmarks-btn" id="bookmarks-toggle" title="Bookmarks">
+            <i class="fas fa-bookmark"></i>
+            <span>Bookmarks</span>
+        </button>
+        <div class="bm-dropdown" id="bm-dropdown">
+            <div id="bm-tree-container"></div>
+            <div class="bm-divider"></div>
+            <a href="/bookmarks" class="bm-manage-link"><i class="fas fa-cog"></i> Manage Bookmarks</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1><i class="fab fa-docker"></i> Docker Dashboard</h1>
+
+        <!-- News & Reading -->
+        <div class="category">
+            <h2 class="category-title"><i class="fas fa-book-open"></i> News & Reading</h2>
+            <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8010" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-newspaper"></i>
+                            <span class="service-name">News</span>
+                        </div>
+                        <div class="service-description">News Aggregator & Reports</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8010</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('booknews')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('booknews')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8007" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-book"></i>
+                            <span class="service-name">GreatReads</span>
+                        </div>
+                        <div class="service-description">Book Tracking</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8007</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('greatreads-prod')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('greatreads-prod')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:13378" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-headphones"></i>
+                            <span class="service-name">Audiobookshelf</span>
+                        </div>
+                        <div class="service-description">Audiobook & Podcast Server</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:13378</div>
+                        <button class="action-btn scan-btn" onclick="scanAudiobookshelf()">
+                            <i class="fas fa-sync"></i> Scan
+                        </button>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('audiobookshelf')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('audiobookshelf')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="https://100.69.184.113:8084" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-book-reader"></i>
+                            <span class="service-name">Calibre</span>
+                        </div>
+                        <div class="service-description">Ebook Library & DeDRM</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8084 / :8083</div>
+                        <a href="http://100.69.184.113:8083" class="action-btn scan-btn" target="_blank" style="text-decoration:none;">
+                            <i class="fas fa-server"></i> Content Server
+                        </a>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('calibre')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('calibre')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:5007" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-book-medical"></i>
+                            <span class="service-name">Libby Browser</span>
+                        </div>
+                        <div class="service-description">Library Ebook Search & Borrow</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:5007</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('libby-web')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('libby-web')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forge Apps -->
+        <div class="category">
+            <h2 class="category-title"><i class="fas fa-hammer"></i> Forge Apps</h2>
+            <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8004" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-bolt"></i>
+                            <span class="service-name">LifeForge</span>
+                        </div>
+                        <div class="service-description">Journaling & Habit Tracking</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8004</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('lifeforge')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('lifeforge')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8003" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-palette"></i>
+                            <span class="service-name">ArtForge</span>
+                        </div>
+                        <div class="service-description">Art & Drawing Projects</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8003</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('artforge')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('artforge')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8002" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-pen-fancy"></i>
+                            <span class="service-name">WordForge</span>
+                        </div>
+                        <div class="service-description">Creative Writing</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8002</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('wordforge')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('wordforge')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8005" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-code"></i>
+                            <span class="service-name">CodeForge</span>
+                        </div>
+                        <div class="service-description">Web-based IDE with AI</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8005</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('codeforge')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('codeforge')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Media Services -->
+        <div class="category">
+            <h2 class="category-title"><i class="fas fa-photo-video"></i> Media</h2>
+            <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:2283" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-images"></i>
+                            <span class="service-name">Immich</span>
+                        </div>
+                        <div class="service-description">Photo & Video Management</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:2283</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('immich')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('immich')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8096" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-film"></i>
+                            <span class="service-name">Jellyfin</span>
+                        </div>
+                        <div class="service-description">Media Server</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8096</div>
+                        <button class="action-btn scan-btn" onclick="scanJellyfin()">
+                            <i class="fas fa-sync"></i> Scan
+                        </button>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('jellyfin')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('jellyfin')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8080" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-gamepad"></i>
+                            <span class="service-name">Romm</span>
+                        </div>
+                        <div class="service-description">ROM Management</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8080</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('romm')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('romm')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8006" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-child"></i>
+                            <span class="service-name">KidMedia</span>
+                        </div>
+                        <div class="service-description">Kid Media Player</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8006</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('kidmedia')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('kidmedia')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Download Services -->
+        <div class="category">
+            <h2 class="category-title"><i class="fas fa-download"></i> Downloads</h2>
+            <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:2285/" class="service-link" target="_blank" rel="noreferrer noopener">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-cloud-download-alt"></i>
+                            <span class="service-name">qBittorrent</span>
+                        </div>
+                        <div class="service-description">Torrent Client (VPN Protected)</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:2285</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('qbittorrent')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('qbittorrent')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:9117" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-search"></i>
+                            <span class="service-name">Jackett</span>
+                        </div>
+                        <div class="service-description">Torrent Indexer (VPN Protected)</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:9117</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('jackett')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('jackett')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8998" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fab fa-youtube"></i>
+                            <span class="service-name">YT-DLP Web</span>
+                        </div>
+                        <div class="service-description">YouTube Downloader</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8998</div>
+                        <button class="action-btn download-btn" onclick="downloadYouTube()">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('ytdlp')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('ytdlp')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:6595" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-music"></i>
+                            <span class="service-name">Deemix</span>
+                        </div>
+                        <div class="service-description">Music Downloader (Deezer)</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:6595</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('deemix')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('deemix')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Tools -->
+        <div class="category">
+            <h2 class="category-title"><i class="fas fa-tools"></i> Tools</h2>
+            <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8085" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-book-open"></i>
+                            <span class="service-name">Trilium Notes</span>
+                        </div>
+                        <div class="service-description">Personal Knowledge Base</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8085</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('trilium')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('trilium')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:9999" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-tags"></i>
+                            <span class="service-name">Stash</span>
+                        </div>
+                        <div class="service-description">Media Organizer & Tagger</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:9999</div>
+                        <button class="action-btn scan-btn" onclick="tagStash()">
+                            <i class="fas fa-tag"></i> Tag
+                        </button>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('stash')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('stash')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8098" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-book"></i>
+                            <span class="service-name">Dictionary</span>
+                        </div>
+                        <div class="service-description">Word Definitions & Lookup</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8098</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('dictionary')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('dictionary')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="/" class="service-link">
+                        <div class="service-header">
+                            <i class="service-icon fab fa-docker"></i>
+                            <span class="service-name">Dashboard</span>
+                        </div>
+                        <div class="service-description">This Dashboard</div>
+                    </a>
+                    <div class="service-footer">
+                        <div class="service-url">:8001</div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="selfRestart()">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="selfRecreate()">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Reconnecting overlay -->
+    <div id="reconnect-overlay" class="reconnect-overlay">
+        <div class="reconnect-content">
+            <i class="fas fa-sync-alt fa-spin reconnect-icon"></i>
+            <h2>Dashboard is restarting...</h2>
+            <p id="reconnect-status">Waiting for dashboard to come back online</p>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API_URL = 'http://100.69.184.113:8001/api';
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        async function restartContainer(serviceId) {
+            const btn = event.target.closest('.restart-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/restart/${serviceId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Container restarted successfully', 'success');
+                } else {
+                    showToast(data.error || 'Failed to restart container', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        async function recreateContainer(serviceId) {
+            const btn = event.target.closest('.recreate-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/recreate/${serviceId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Container recreated successfully', 'success');
+                } else {
+                    showToast(data.error || 'Failed to recreate container', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        function showReconnectOverlay(action) {
+            const overlay = document.getElementById('reconnect-overlay');
+            const status = document.getElementById('reconnect-status');
+            overlay.querySelector('h2').textContent = action === 'recreate'
+                ? 'Dashboard is rebuilding & restarting...'
+                : 'Dashboard is restarting...';
+            status.textContent = 'Waiting for dashboard to come back online...';
+            overlay.classList.add('active');
+
+            let attempts = 0;
+            const maxAttempts = 120; // 2 minutes
+            const pollInterval = setInterval(async () => {
+                attempts++;
+                status.textContent = `Waiting for dashboard to come back online... (${attempts}s)`;
+                try {
+                    const r = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(2000) });
+                    if (r.ok) {
+                        clearInterval(pollInterval);
+                        status.textContent = 'Dashboard is back! Reloading...';
+                        setTimeout(() => window.location.reload(), 500);
+                    }
+                } catch (e) {
+                    // Still down, keep polling
+                }
+                if (attempts >= maxAttempts) {
+                    clearInterval(pollInterval);
+                    status.textContent = 'Dashboard may still be starting. Try refreshing manually.';
+                }
+            }, 1000);
+        }
+
+        async function selfRestart() {
+            if (!confirm('Restart the dashboard? It will be temporarily unavailable.')) return;
+            const btn = event.target.closest('.restart-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            try {
+                await fetch(`${API_URL}/self/restart`, { method: 'POST' });
+            } catch (e) { /* expected - server dies */ }
+            showReconnectOverlay('restart');
+        }
+
+        async function selfRecreate() {
+            if (!confirm('Rebuild & recreate the dashboard? This takes longer but picks up code changes.')) return;
+            const btn = event.target.closest('.recreate-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            try {
+                await fetch(`${API_URL}/self/recreate`, { method: 'POST' });
+            } catch (e) { /* expected - server dies */ }
+            showReconnectOverlay('recreate');
+        }
+
+        async function scanJellyfin() {
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/scan/jellyfin`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Jellyfin library scan started', 'success');
+                } else {
+                    showToast(data.error || 'Failed to start Jellyfin scan', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        async function scanAudiobookshelf() {
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/scan/audiobookshelf`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Audiobookshelf library scan started', 'success');
+                } else {
+                    showToast(data.error || 'Failed to start Audiobookshelf scan', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        async function tagStash() {
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/tag/stash`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'Stash auto-tagging started', 'success');
+                } else {
+                    showToast(data.error || 'Failed to start Stash tagging', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        async function downloadYouTube() {
+            // Prompt user for YouTube URL
+            const url = prompt('Enter YouTube URL:');
+
+            if (!url || url.trim() === '') {
+                return; // User cancelled or entered empty string
+            }
+
+            const btn = event.target.closest('.download-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const response = await fetch(`${API_URL}/download/youtube`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url.trim() })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(data.message || 'YouTube download started', 'success');
+                } else {
+                    showToast(data.error || 'Failed to start download', 'error');
+                }
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        // --- Bookmarks Dropdown ---
+        const bmToggle = document.getElementById('bookmarks-toggle');
+        const bmDropdown = document.getElementById('bm-dropdown');
+        const bmContainer = document.getElementById('bm-tree-container');
+        let bmData = [];
+
+        bmToggle.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const isOpen = bmDropdown.classList.toggle('open');
+            bmToggle.classList.toggle('active', isOpen);
+            if (isOpen) {
+                try {
+                    const r = await fetch('/api/bookmarks');
+                    bmData = await r.json();
+                    renderBmTree();
+                } catch (err) {
+                    bmContainer.innerHTML = '<div class="bm-empty"><i class="fas fa-exclamation-triangle"></i>Failed to load bookmarks</div>';
+                }
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.bookmarks-wrapper')) {
+                bmDropdown.classList.remove('open');
+                bmToggle.classList.remove('active');
+            }
+        });
+
+        function buildBmTree(parentId) {
+            const items = bmData.filter(b => (b.parent_id || null) === parentId);
+            if (!items.length) return '';
+            let html = '<ul class="bm-tree">';
+            for (const item of items) {
+                const isFolder = item.type === 'folder';
+                const children = isFolder ? buildBmTree(item.id) : '';
+                if (isFolder) {
+                    const toggle = `<i class="toggle-icon fas fa-chevron-right"></i>`;
+                    html += `<li class="bm-tree-item collapsed">
+                        <div class="bm-tree-row" onclick="toggleBmFolder(this)">${toggle}<i class="folder-icon fas fa-folder"></i><span class="bm-tree-name">${bmEsc(item.name)}</span></div>
+                        ${children}
+                    </li>`;
+                } else {
+                    html += `<li class="bm-tree-item">
+                        <a class="bm-tree-row" href="${bmEsc(item.url)}" target="_blank"><span class="bm-tree-name">${bmEsc(item.name)}</span></a>
+                    </li>`;
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        function renderBmTree() {
+            const tree = buildBmTree(null);
+            bmContainer.innerHTML = tree || '<div class="bm-empty"><i class="fas fa-bookmark"></i>No bookmarks yet</div>';
+        }
+
+        function bmEsc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+        function toggleBmFolder(el) {
+            const li = el.closest('.bm-tree-item');
+            const isExpanding = li.classList.contains('collapsed');
+            if (isExpanding) {
+                // Collapse all siblings and their descendants
+                const parentUl = li.parentElement;
+                parentUl.querySelectorAll(':scope > .bm-tree-item').forEach(sibling => {
+                    if (sibling !== li) {
+                        sibling.classList.add('collapsed');
+                        sibling.querySelectorAll('.bm-tree-item').forEach(desc => {
+                            desc.classList.add('collapsed');
+                            const descIcon = desc.querySelector(':scope > .bm-tree-row .toggle-icon');
+                            if (descIcon) descIcon.className = 'toggle-icon fas fa-chevron-right';
+                        });
+                        const sibIcon = sibling.querySelector(':scope > .bm-tree-row .toggle-icon');
+                        if (sibIcon) sibIcon.className = 'toggle-icon fas fa-chevron-right';
+                    }
+                });
+            }
+            li.classList.toggle('collapsed');
+            const icon = el.querySelector('.toggle-icon');
+            icon.className = li.classList.contains('collapsed') ? 'toggle-icon fas fa-chevron-right' : 'toggle-icon fas fa-chevron-down';
+        }
+
+        // ── Health button status color ───────────────────────────────────
+        (function initHealthButtonStatus() {
+            const btn = document.getElementById('health-nav-btn');
+            const LABELS = {
+                ok:      { icon: 'fa-heartbeat', text: 'Server Health: OK' },
+                warn:    { icon: 'fa-triangle-exclamation', text: 'Server Health: Degraded' },
+                crit:    { icon: 'fa-skull-crossbones', text: 'Server Health: Critical' },
+                unknown: { icon: 'fa-circle-notch', text: 'Server Health: Checking' },
+            };
+
+            function updateButton(status) {
+                const s = LABELS[status] || LABELS.unknown;
+                btn.className = `health-nav-btn ${status}`;
+                btn.innerHTML = `<i class="fas ${s.icon}${status === 'unknown' ? ' fa-spin' : ''}"></i><span>Server Health</span>`;
+                btn.title = s.text;
+            }
+
+            function fetchStatus() {
+                fetch('/api/infra/status')
+                    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                    .then(d => updateButton(d.overall || 'unknown'))
+                    .catch(() => updateButton('unknown'));
+            }
+
+            fetchStatus();
+            setInterval(fetchStatus, 60_000);
+        })();
+    </script>
+</body>
+</html>
+

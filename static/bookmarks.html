@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔖 Bookmarks</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔖</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-orange: #FF9500;
+            --dark-orange: #E67E00;
+            --light-orange: #FFB84D;
+            --black: #0A0A0A;
+            --dark-gray: #1A1A1A;
+            --medium-gray: #2A2A2A;
+            --light-gray: #CCCCCC;
+            --white: #FFFFFF;
+            --off-white: #F5F5F5;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --glow: 0 0 20px rgba(255, 149, 0, 0.3);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--black) 0%, var(--dark-gray) 50%, var(--black) 100%);
+            min-height: 100vh; padding: 1.5rem; color: var(--off-white);
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .header h1 { color: var(--white); font-size: 2rem; text-shadow: 0 0 20px rgba(255,149,0,0.5); text-transform: uppercase; letter-spacing: 2px; font-weight: 900; }
+        .back-btn { text-decoration: none; color: var(--primary-orange); font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border: 1px solid var(--medium-gray); border-radius: 0.5rem; transition: all 0.2s; }
+        .back-btn:hover { border-color: var(--primary-orange); color: var(--white); }
+        .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .toolbar button { padding: 0.5rem 1rem; border: 1px solid var(--medium-gray); border-radius: 0.5rem; background: var(--dark-gray); color: var(--primary-orange); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 0.4rem; }
+        .toolbar button:hover { border-color: var(--primary-orange); color: var(--white); }
+        .tree { list-style: none; }
+        .tree ul { list-style: none; padding-left: 1.5rem; }
+        .tree-item { margin: 0.25rem 0; }
+        .tree-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; transition: background 0.15s; cursor: default; }
+        .tree-row:hover { background: var(--medium-gray); }
+        .tree-toggle { width: 1.2rem; text-align: center; cursor: pointer; color: var(--light-gray); font-size: 0.7rem; flex-shrink: 0; user-select: none; }
+        .tree-toggle:hover { color: var(--primary-orange); }
+        .tree-icon { color: var(--primary-orange); width: 1.2rem; text-align: center; flex-shrink: 0; }
+        .tree-name { flex: 1; font-size: 0.95rem; color: var(--off-white); }
+        .tree-name a { color: var(--off-white); text-decoration: none; }
+        .tree-name a:hover { color: var(--primary-orange); text-decoration: underline; }
+        .tree-actions { display: flex; gap: 0.3rem; opacity: 0; transition: opacity 0.15s; }
+        .tree-row:hover .tree-actions { opacity: 1; }
+        .tree-actions button { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: 0.2rem 0.4rem; font-size: 0.8rem; border-radius: 0.25rem; }
+        .tree-actions button:hover { color: var(--primary-orange); background: rgba(255,149,0,0.1); }
+        .tree-actions button.delete-btn:hover { color: #f44336; background: rgba(244,67,54,0.1); }
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: var(--dark-gray); border: 1px solid var(--medium-gray); border-radius: 0.75rem; padding: 1.5rem; width: 400px; max-width: 90vw; }
+        .modal h3 { color: var(--white); margin-bottom: 1rem; font-size: 1.1rem; }
+        .modal label { display: block; color: var(--light-gray); font-size: 0.85rem; margin-bottom: 0.3rem; margin-top: 0.75rem; }
+        .modal input, .modal select { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--medium-gray); border-radius: 0.4rem; background: var(--black); color: var(--off-white); font-size: 0.9rem; }
+        .modal input:focus, .modal select:focus { outline: none; border-color: var(--primary-orange); }
+        .modal-btns { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+        .modal-btns button { padding: 0.5rem 1rem; border-radius: 0.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; }
+        .btn-cancel { background: var(--medium-gray); color: var(--light-gray); }
+        .btn-cancel:hover { color: var(--white); }
+        .btn-save { background: var(--primary-orange); color: var(--black); }
+        .btn-save:hover { background: var(--light-orange); }
+        .empty-state { text-align: center; padding: 3rem; color: var(--light-gray); }
+        .empty-state i { font-size: 3rem; color: var(--medium-gray); margin-bottom: 1rem; display: block; }
+        .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--medium-gray); color: var(--white); padding: 1rem 1.5rem; border-radius: 0.5rem; border-left: 4px solid var(--primary-orange); box-shadow: var(--shadow); transform: translateX(400px); transition: transform 0.3s; z-index: 1001; max-width: 300px; }
+        .toast.show { transform: translateX(0); }
+        .toast.error { border-left-color: #f44336; }
+        .collapsed > ul { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-bookmark"></i> Bookmarks</h1>
+            <a href="/" class="back-btn"><i class="fas fa-arrow-left"></i> Dashboard</a>
+        </div>
+        <div class="toolbar">
+            <button onclick="openModal('bookmark')"><i class="fas fa-plus"></i> Add Bookmark</button>
+            <button onclick="openModal('folder')"><i class="fas fa-folder-plus"></i> Add Folder</button>
+        </div>
+        <div id="tree-root"></div>
+    </div>
+
+    <div id="modal" class="modal-overlay">
+        <div class="modal">
+            <h3 id="modal-title">Add Bookmark</h3>
+            <label for="bm-name">Name</label>
+            <input type="text" id="bm-name" placeholder="My Bookmark">
+            <div id="url-field">
+                <label for="bm-url">URL</label>
+                <input type="text" id="bm-url" placeholder="https://example.com">
+            </div>
+            <label for="bm-parent">Parent Folder</label>
+            <select id="bm-parent"><option value="">— Root —</option></select>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-save" id="modal-save">Save</button>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast"></div>
+
+    <script>
+    const API = '/api/bookmarks';
+    let bookmarks = [];
+    let editingId = null;
+    let modalType = 'bookmark';
+
+    async function load() {
+        const r = await fetch(API); bookmarks = await r.json(); render();
+    }
+
+    function buildTree(parentId) {
+        const items = bookmarks.filter(b => (b.parent_id || null) === parentId);
+        if (!items.length) return '';
+        let html = '<ul class="tree">';
+        for (const item of items) {
+            const isFolder = item.type === 'folder';
+            const children = isFolder ? buildTree(item.id) : '';
+            const hasChildren = children.length > 0;
+            const icon = isFolder ? 'fa-folder' : 'fa-link';
+            const nameHtml = isFolder ? `<span>${esc(item.name)}</span>` : `<a href="${esc(item.url)}" target="_blank">${esc(item.name)}</a>`;
+            const toggle = isFolder ? `<span class="tree-toggle" onclick="toggleFolder(this)"><i class="fas fa-chevron-down"></i></span>` : `<span class="tree-toggle"></span>`;
+            html += `<li class="tree-item" data-id="${item.id}">
+                <div class="tree-row">
+                    ${toggle}
+                    <i class="tree-icon fas ${icon}"></i>
+                    <span class="tree-name">${nameHtml}</span>
+                    <span class="tree-actions">
+                        <button onclick="editItem('${item.id}')" title="Edit"><i class="fas fa-pen"></i></button>
+                        <button class="delete-btn" onclick="deleteItem('${item.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                    </span>
+                </div>
+                ${children}
+            </li>`;
+        }
+        html += '</ul>';
+        return html;
+    }
+
+    function render() {
+        const root = document.getElementById('tree-root');
+        const tree = buildTree(null);
+        root.innerHTML = tree || '<div class="empty-state"><i class="fas fa-bookmark"></i>No bookmarks yet. Add one above!</div>';
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    function toggleFolder(el) {
+        const li = el.closest('.tree-item');
+        li.classList.toggle('collapsed');
+        const icon = el.querySelector('i');
+        icon.className = li.classList.contains('collapsed') ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
+    }
+
+    function populateFolderSelect(excludeId) {
+        const sel = document.getElementById('bm-parent');
+        sel.innerHTML = '<option value="">— Root —</option>';
+        bookmarks.filter(b => b.type === 'folder' && b.id !== excludeId).forEach(f => {
+            sel.innerHTML += `<option value="${f.id}">${esc(f.name)}</option>`;
+        });
+    }
+
+    function openModal(type, id) {
+        modalType = type; editingId = id || null;
+        document.getElementById('modal-title').textContent = id ? `Edit ${type === 'folder' ? 'Folder' : 'Bookmark'}` : `Add ${type === 'folder' ? 'Folder' : 'Bookmark'}`;
+        document.getElementById('url-field').style.display = type === 'folder' ? 'none' : 'block';
+        populateFolderSelect(id);
+        if (id) {
+            const bm = bookmarks.find(b => b.id === id);
+            document.getElementById('bm-name').value = bm.name;
+            document.getElementById('bm-url').value = bm.url || '';
+            document.getElementById('bm-parent').value = bm.parent_id || '';
+        } else {
+            document.getElementById('bm-name').value = '';
+            document.getElementById('bm-url').value = '';
+            document.getElementById('bm-parent').value = '';
+        }
+        document.getElementById('modal').classList.add('show');
+        document.getElementById('bm-name').focus();
+    }
+    function closeModal() { document.getElementById('modal').classList.remove('show'); editingId = null; }
+
+    document.getElementById('modal-save').onclick = async () => {
+        const name = document.getElementById('bm-name').value.trim();
+        if (!name) return;
+        const body = { name, type: modalType, url: document.getElementById('bm-url').value.trim(), parent_id: document.getElementById('bm-parent').value || null };
+        if (editingId) { await fetch(`${API}/${editingId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); }
+        else { await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); }
+        closeModal(); await load(); showToast(editingId ? 'Updated!' : 'Added!');
+    };
+
+    function editItem(id) { const bm = bookmarks.find(b => b.id === id); openModal(bm.type, id); }
+
+    async function deleteItem(id) {
+        if (!confirm('Delete this item?')) return;
+        await fetch(`${API}/${id}`, { method: 'DELETE' }); await load(); showToast('Deleted');
+    }
+
+    function showToast(msg, type='success') {
+        const t = document.getElementById('toast'); t.textContent = msg; t.className = `toast ${type} show`;
+        setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    // Keyboard shortcut: Escape closes modal
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    load();
+    </script>
+</body>
+</html>
