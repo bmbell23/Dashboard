@@ -178,7 +178,6 @@
                     <th>Repository</th>
                     <th>Branch</th>
                     <th>Status</th>
-                    <th>Sync</th>
                     <th>Notes</th>
                 </tr>
             </thead>
@@ -446,18 +445,14 @@ function renderRepos(data) {
     const tbody = $('repos-tbody');
     const repos = (data && data.repos) || [];
     if (repos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="soft">No repository data available.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="soft">No repository data available.</td></tr>`;
         return;
     }
     tbody.innerHTML = repos.map(r => {
-        const sync = (r.ahead || r.behind)
-            ? `+${r.ahead || 0} / -${r.behind || 0}`
-            : '0 / 0';
         return `<tr>
             <td><div>${r.name}</div><div class="mono">${r.path}</div></td>
             <td>${r.branch || '<span class="soft">n/a</span>'}</td>
             <td>${sevTag(r.severity)} <span class="soft" style="margin-left:.4rem">${(r.state || '').replace(/_/g, ' ').toUpperCase()}</span></td>
-            <td class="mono">${sync}</td>
             <td>${r.summary || ''}${r.conflicts ? `<div class="soft">conflicts: ${r.conflicts}</div>` : ''}${r.dirty_files ? `<div class="soft">dirty files: ${r.dirty_files}</div>` : ''}</td>
         </tr>`;
     }).join('');

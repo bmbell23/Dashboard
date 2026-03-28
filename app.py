@@ -282,8 +282,6 @@ def _repo_status(repo: dict) -> dict:
             'branch': None,
             'dirty_files': 0,
             'conflicts': 0,
-            'ahead': 0,
-            'behind': 0,
             'summary': 'Repository path not found',
         }
 
@@ -298,8 +296,6 @@ def _repo_status(repo: dict) -> dict:
                 'branch': None,
                 'dirty_files': 0,
                 'conflicts': 0,
-                'ahead': 0,
-                'behind': 0,
                 'summary': 'Git safe.directory ownership check blocked this repo',
             }
         return {
@@ -310,8 +306,6 @@ def _repo_status(repo: dict) -> dict:
             'branch': None,
             'dirty_files': 0,
             'conflicts': 0,
-            'ahead': 0,
-            'behind': 0,
             'summary': 'Not a git repository',
         }
 
@@ -382,8 +376,6 @@ def _repo_status(repo: dict) -> dict:
         'upstream': upstream,
         'dirty_files': dirty_files,
         'conflicts': conflicts,
-        'ahead': ahead,
-        'behind': behind,
         'summary': summary,
     }
 
