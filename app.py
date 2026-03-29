@@ -155,7 +155,7 @@ DRIVE_LAYOUT = [
         'category': 'external',
         'mountpoint': '/mnt/allston',
         'size_gb_hint': 1800,
-        'purpose': 'Planned Proxmox ISOs',
+        'purpose': 'Proxmox ISO/image storage',
     },
     {
         'id': 'external_disk',
@@ -1000,8 +1000,13 @@ def _read_vm_backup_overview() -> dict:
     if not ssh_candidates:
         return {
             'id': 'proxmox_vm',
-            'title': 'Proxmox VM backups',
-            'includes': ['vzdump VM snapshots/archives'],
+            'title': 'Proxmox backup job: boston_backups',
+            'includes': [
+                'Location: /mnt/boston/proxmox-backups',
+                'Scope: VMs 101, 100, 102, 103',
+                'Format: vzdump compressed VMA archive',
+                'Retention: keep-weekly=3',
+            ],
             'schedule': None,
             'next_run': None,
             'last_run': None,
@@ -1014,7 +1019,7 @@ def _read_vm_backup_overview() -> dict:
         }
 
     ssh_base = None
-    files_cmd = "ls -1t /mnt/backups/vzdump-* /var/lib/vz/dump/vzdump-* 2>/dev/null | head -n 12"
+    files_cmd = "ls -1t /mnt/boston/proxmox-backups/dump/vzdump-* /mnt/boston/proxmox-backups/vzdump-* /mnt/backups/vzdump-* /var/lib/vz/dump/vzdump-* 2>/dev/null | head -n 24"
     code = 1
     out = ''
     for base in ssh_candidates:
@@ -1040,23 +1045,55 @@ def _read_vm_backup_overview() -> dict:
         running = True
 
     schedule = None
-    c4, s_out, _ = _run_cmd(ssh_base + ["cat /etc/pve/vzdump.cron 2>/dev/null | sed '/^#/d;/^$/d' | head -n 1"], timeout=8)
+    c4, s_out, _ = _run_cmd(ssh_base + ["awk '/^schedule[[:space:]]/{print; exit}' /etc/pve/vzdump.cron 2>/dev/null"], timeout=8)
     if c4 == 0 and s_out.strip():
-        schedule = s_out.strip()
+        raw = s_out.strip()
+        m = re.match(r'^schedule\s+([a-z]{3})\s+(\d{2}):(\d{2})$', raw)
+        if m:
+            dow, hh, mm = m.groups()
+            days = {
+                'sun': 'Sunday', 'mon': 'Monday', 'tue': 'Tuesday', 'wed': 'Wednesday',
+                'thu': 'Thursday', 'fri': 'Friday', 'sat': 'Saturday',
+            }
+            schedule = f"Every {days.get(dow, dow)} at {hh}:{mm}"
+        else:
+            schedule = raw
+
+    # If config parsing is unavailable from the current SSH user, fall back to known job cadence.
+    if not schedule:
+        schedule = 'Every Sunday at 03:00'
+
+    next_run = _cron_next_run('0 3 * * 0')
+
+    total_size = None
+    c5, sz_out, _ = _run_cmd(ssh_base + ["du -sb /mnt/boston/proxmox-backups 2>/dev/null | awk '{print $1}'"], timeout=8)
+    if c5 == 0 and sz_out.strip().isdigit():
+        try:
+            total_size = round(int(sz_out.strip()) / 1e9, 1)
+        except Exception:
+            total_size = None
 
     severity = 'ok' if artifacts else 'warn'
     if running:
         severity = 'warn'
-    status_note = 'Detected VM backup archives.' if artifacts else 'No VM backup archives detected in common Proxmox paths.'
+    status_note = 'Detected VM backup archives.' if artifacts else 'No VM backup archives detected in expected paths.'
     if running:
         status_note = 'VM backup appears to be running now.'
+    elif artifacts and total_size is not None:
+        status_note = f'Detected VM backup archives (~{total_size} GB total).'
 
     return {
         'id': 'proxmox_vm',
-        'title': 'Proxmox VM backups',
-        'includes': ['vzdump VM snapshots/archives'],
+        'title': 'Proxmox backup job: boston_backups',
+        'includes': [
+            'Location: /mnt/boston/proxmox-backups',
+            'Scope: VMs 101, 100, 102, 103',
+            'Format: vzdump compressed VMA archive',
+            'Retention: keep-weekly=3',
+            'VM 102 currently backs up EFI/TPM only (no main disk)',
+        ],
         'schedule': schedule,
-        'next_run': None,
+        'next_run': next_run,
         'last_run': last_run,
         'running': running,
         'progress_pct': 25 if running else None,
