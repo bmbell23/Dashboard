@@ -125,6 +125,20 @@
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem; color: #b9b9b9; }
         .soft { color: var(--muted); font-size: .75rem; }
 
+        .backup-table { width: 100%; border-collapse: collapse; min-width: 920px; }
+        .backup-table th, .backup-table td { padding: .62rem .68rem; border-bottom: 1px solid #222; font-size: .82rem; text-align: left; vertical-align: top; }
+        .backup-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
+        .backup-list { margin: 0; padding-left: 1.1rem; }
+        .backup-list li { margin: .16rem 0; }
+        .sync-chip { font-size: .64rem; text-transform: uppercase; letter-spacing: .85px; padding: .14rem .42rem; border-radius: 999px; border: 1px solid var(--border); }
+        .sync-chip.matched { color: var(--green); border-color: rgba(52,199,89,.35); background: rgba(52,199,89,.11); }
+        .sync-chip.running { color: var(--yellow); border-color: rgba(255,159,10,.35); background: rgba(255,159,10,.11); }
+        .sync-chip.skipped { color: #9ad3ff; border-color: rgba(100,210,255,.45); background: rgba(100,210,255,.12); }
+        .sync-chip.mismatch { color: var(--red); border-color: rgba(255,69,58,.4); background: rgba(255,69,58,.12); }
+        .sync-chip.unknown { color: var(--muted); border-color: var(--border); background: rgba(255,255,255,.03); }
+        .progress-track { margin-top: .45rem; height: 8px; border-radius: 999px; background: #2a2a2a; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #ff9f0a, #ffd60a); }
+
         .empty-note { color: var(--muted); font-size: .83rem; padding: .5rem 0; }
     </style>
 </head>
@@ -183,6 +197,32 @@
             </thead>
             <tbody id="repos-tbody"></tbody>
         </table>
+    </div>
+</div>
+
+<!-- Backup Overview -->
+<div class="section">
+    <div class="section-title">Backup Overview</div>
+    <div class="ops-card" style="margin-bottom:.7rem;">
+        <div class="table-wrap">
+            <table class="backup-table">
+                <thead>
+                    <tr>
+                        <th>Backup</th>
+                        <th>What it backs up</th>
+                        <th>Last Run</th>
+                        <th>Next Run</th>
+                        <th>Sync State</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="backups-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="ops-card">
+        <h4>Coverage</h4>
+        <ul id="backup-coverage" class="ops-list"></ul>
     </div>
 </div>
 
@@ -479,6 +519,57 @@ function renderRepos(data) {
     }).join('');
 }
 
+function syncChip(state) {
+    const s = state || 'unknown';
+    const labels = {
+        matched: 'Source/Destination Match',
+        running: 'Running Now',
+        skipped: 'Skipped (Drive Offline)',
+        mismatch: 'Mismatch/Failed',
+        unknown: 'Unknown',
+    };
+    return `<span class="sync-chip ${s}">${labels[s] || labels.unknown}</span>`;
+}
+
+function renderBackups(data) {
+    const tbody = $('backups-tbody');
+    const coverageEl = $('backup-coverage');
+    const jobs = (data && data.jobs) || [];
+
+    if (!jobs.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="soft">No backup definitions available.</td></tr>`;
+    } else {
+        tbody.innerHTML = jobs.map(j => {
+            const lastRun = j.last_run ? new Date(j.last_run).toLocaleString() : 'No run found';
+            const nextRun = j.next_run ? new Date(j.next_run).toLocaleString() : (j.schedule ? 'From schedule config' : 'n/a');
+            const includes = (j.includes || []).map(i => `<li>${i}</li>`).join('');
+            const progress = (j.running && j.progress_pct != null)
+                ? `<div class="progress-track"><div class="progress-fill" style="width:${Math.min(j.progress_pct, 100)}%"></div></div><div class="soft">${j.progress_pct}% complete (live estimate)</div>`
+                : '';
+            const scheduleLine = j.schedule ? `<div class="soft mono">${j.schedule}</div>` : '';
+            const logLine = j.log_path ? `<div class="soft mono">${j.log_path}</div>` : '';
+            return `<tr>
+                <td>
+                    <div>${j.title}</div>
+                    ${scheduleLine}
+                </td>
+                <td><ul class="backup-list">${includes}</ul></td>
+                <td>${lastRun}</td>
+                <td>${nextRun}</td>
+                <td>${syncChip(j.sync_state)}${progress}</td>
+                <td>${sevTag(j.severity)} <span class="soft" style="margin-left:.4rem">${j.status_note || ''}</span>${logLine}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    const coverage = (data && data.coverage) || [];
+    if (!coverage.length) {
+        coverageEl.innerHTML = '<li class="empty-note">No backup coverage metadata available.</li>';
+        return;
+    }
+    coverageEl.innerHTML = coverage.map(c => `<li class="ops-row"><div class="ops-left"><span class="name">${c}</span></div></li>`).join('');
+}
+
 function renderCronTable(entries) {
     const tbody = $('cron-tbody');
     if (!entries || entries.length === 0) {
@@ -603,6 +694,7 @@ function refreshExtended() {
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(ext => {
             renderRepos(ext.repos || {});
+            renderBackups(ext.backups || {});
             renderAutomation(ext.automation || {});
             renderMounts(ext.disks || {});
             renderNetwork(ext.network || {});

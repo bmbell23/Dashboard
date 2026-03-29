@@ -114,10 +114,74 @@ AUTOMATION_CONTAINERS = [
     'dashboard', 'libby-web', 'mullvad-vpn'
 ]
 
+BACKUP_JOB_DEFS = [
+    {
+        'id': 'internal_hourly',
+        'title': 'Hourly internal backup',
+        'script': 'backup-script.sh',
+        'schedule_hint': '0 * * * *',
+        'source_root': '/mnt/boston',
+        'dest_root': '/mnt/backups',
+        'paths': [
+            'docker-backups',
+            'documents',
+            'media/audiobooks',
+            'media/books',
+            'media/games',
+            'media/audiobookshelf',
+            'media/music',
+            'media/other',
+        ],
+        'expected_steps': 8,
+    },
+    {
+        'id': 'external_hourly',
+        'title': 'Hourly external media backup',
+        'script': 'backup-external.sh',
+        'schedule_hint': '5 * * * *',
+        'source_root': '/mnt/boston',
+        'dest_root': '/mnt/external',
+        'paths': [
+            'media/pictures',
+            'media/videos',
+        ],
+        'expected_steps': 2,
+    },
+]
+
 _latest_status: dict = {}
 _status_lock = threading.Lock()
 _latest_extended: dict = {}
 _extended_lock = threading.Lock()
+
+
+def _build_proxmox_ssh_base(user_env: str = 'PROXMOX_SSH_USER',
+                            password_env: str = 'PROXMOX_SSH_PASSWORD',
+                            default_user: str = 'brandon') -> tuple[list[str] | None, str | None]:
+    """Build SSH command prefix from environment variables."""
+    host = os.environ.get('PROXMOX_SSH_HOST', '').strip()
+    user = os.environ.get(user_env, default_user).strip()
+    password = os.environ.get(password_env, '').strip()
+    if password.startswith(('"', "'")) and password.endswith(('"', "'")) and len(password) >= 2:
+        password = password[1:-1]
+    password = password.replace('\\#', '#')
+
+    if not host:
+        return None, 'PROXMOX_SSH_HOST not configured'
+
+    use_password = bool(password and shutil.which('sshpass'))
+    ssh_base = [
+        'ssh',
+        '-o', f'BatchMode={"no" if use_password else "yes"}',
+        '-o', 'PreferredAuthentications=password,publickey',
+        '-o', 'ConnectTimeout=6',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        f'{user}@{host}',
+    ]
+    if use_password:
+        ssh_base = ['sshpass', '-p', password] + ssh_base
+    return ssh_base, None
 
 
 def _init_db():
@@ -190,27 +254,9 @@ def _read_disk(path: str) -> dict:
 
 def _read_proxmox_disks_remote() -> dict[str, dict]:
     """Read selected Proxmox mount usage over SSH as a fallback for host-mismatch setups."""
-    host = os.environ.get('PROXMOX_SSH_HOST', '').strip()
-    user = os.environ.get('PROXMOX_SSH_USER', 'brandon').strip()
-    password = os.environ.get('PROXMOX_SSH_PASSWORD', '').strip()
-    if password.startswith(('"', "'")) and password.endswith(('"', "'")) and len(password) >= 2:
-        password = password[1:-1]
-    password = password.replace('\\#', '#')
-    if not host:
+    ssh_base, err = _build_proxmox_ssh_base()
+    if not ssh_base or err:
         return {}
-
-    use_password = bool(password and shutil.which('sshpass'))
-    ssh_base = [
-        'ssh',
-        '-o', f'BatchMode={"no" if use_password else "yes"}',
-        '-o', 'PreferredAuthentications=password,publickey',
-        '-o', 'ConnectTimeout=6',
-        '-o', 'StrictHostKeyChecking=no',
-        '-o', 'UserKnownHostsFile=/dev/null',
-        f'{user}@{host}',
-    ]
-    if use_password:
-        ssh_base = ['sshpass', '-p', password] + ssh_base
 
     code, out, _ = _run_cmd(
         ssh_base + [
@@ -727,6 +773,194 @@ def _read_backup_log_status_remote(ssh_base: list[str], script_name: str) -> dic
     }
 
 
+def _backup_sync_state(entry: dict | None, running: bool, expected_steps: int, success_count: int | None) -> str:
+    if running:
+        return 'running'
+    note = ((entry or {}).get('status_note') or '').lower()
+    if 'skipped external backup' in note:
+        return 'skipped'
+    if (entry or {}).get('severity') == 'crit':
+        return 'mismatch'
+    if success_count is not None and expected_steps > 0 and success_count >= expected_steps:
+        return 'matched'
+    if 'completed successfully' in note:
+        return 'matched'
+    if (entry or {}).get('last_seen'):
+        return 'unknown'
+    return 'unknown'
+
+
+def _running_backup_progress(ssh_base: list[str] | None, script_name: str, expected_steps: int, log_path: str | None) -> dict:
+    """Return running flag and best-effort progress for backup scripts."""
+    running = False
+    success_count = None
+    progress_pct = None
+
+    if ssh_base:
+        code, out, _ = _run_cmd(ssh_base + [f"pgrep -af {script_name} | grep -v grep"], timeout=8)
+        running = bool(code == 0 and out.strip())
+
+    if ssh_base and log_path:
+        code, content, _ = _run_cmd(ssh_base + [f"tail -n 260 '{log_path}' 2>/dev/null"], timeout=8)
+        if code == 0 and content:
+            success_count = len(re.findall(r'SUCCESS:\s+Backed up:', content))
+            markers = re.findall(r'---\s+Backup\s+(\d+)/(\d+):', content)
+            current_idx = 0
+            total = expected_steps
+            if markers:
+                try:
+                    current_idx = max(int(m[0]) for m in markers)
+                    total = int(markers[-1][1]) if int(markers[-1][1]) > 0 else expected_steps
+                except Exception:
+                    current_idx = 0
+                    total = expected_steps
+
+            if running:
+                done = max(success_count or 0, max(current_idx - 1, 0))
+                progress_pct = int(min(99, (done / max(total, 1)) * 100))
+            elif success_count is not None and expected_steps > 0:
+                progress_pct = int(min(100, (success_count / expected_steps) * 100))
+
+    return {
+        'running': running,
+        'progress_pct': progress_pct,
+        'success_count': success_count,
+    }
+
+
+def _read_vm_backup_overview() -> dict:
+    """Best-effort Proxmox VM backup visibility."""
+    root_base, _ = _build_proxmox_ssh_base('PROXMOX_ROOT_SSH_USER', 'PROXMOX_ROOT_SSH_PASSWORD', 'root')
+    user_base, _ = _build_proxmox_ssh_base()
+    ssh_candidates = [b for b in [root_base, user_base] if b]
+
+    if not ssh_candidates:
+        return {
+            'id': 'proxmox_vm',
+            'title': 'Proxmox VM backups',
+            'includes': ['vzdump VM snapshots/archives'],
+            'schedule': None,
+            'next_run': None,
+            'last_run': None,
+            'running': False,
+            'progress_pct': None,
+            'sync_state': 'unknown',
+            'severity': 'warn',
+            'status_note': 'Proxmox SSH not configured for VM backup visibility.',
+            'artifacts': [],
+        }
+
+    ssh_base = None
+    files_cmd = "ls -1t /mnt/backups/vzdump-* /var/lib/vz/dump/vzdump-* 2>/dev/null | head -n 12"
+    code = 1
+    out = ''
+    for base in ssh_candidates:
+        c, o, _ = _run_cmd(base + [files_cmd], timeout=12)
+        if c == 0:
+            code, out = c, o
+            ssh_base = base
+            break
+    if ssh_base is None:
+        ssh_base = ssh_candidates[0]
+
+    artifacts = [ln.strip() for ln in out.splitlines() if ln.strip()] if code == 0 else []
+
+    last_run = None
+    if artifacts:
+        c2, ts, _ = _run_cmd(ssh_base + [f"date -r '{artifacts[0]}' --iso-8601=seconds"], timeout=8)
+        if c2 == 0 and ts:
+            last_run = ts.strip()
+
+    running = False
+    c3, p_out, _ = _run_cmd(ssh_base + ["pgrep -af 'vzdump|proxmox-backup-client' | grep -v grep"], timeout=8)
+    if c3 == 0 and p_out.strip():
+        running = True
+
+    schedule = None
+    c4, s_out, _ = _run_cmd(ssh_base + ["cat /etc/pve/vzdump.cron 2>/dev/null | sed '/^#/d;/^$/d' | head -n 1"], timeout=8)
+    if c4 == 0 and s_out.strip():
+        schedule = s_out.strip()
+
+    severity = 'ok' if artifacts else 'warn'
+    if running:
+        severity = 'warn'
+    status_note = 'Detected VM backup archives.' if artifacts else 'No VM backup archives detected in common Proxmox paths.'
+    if running:
+        status_note = 'VM backup appears to be running now.'
+
+    return {
+        'id': 'proxmox_vm',
+        'title': 'Proxmox VM backups',
+        'includes': ['vzdump VM snapshots/archives'],
+        'schedule': schedule,
+        'next_run': None,
+        'last_run': last_run,
+        'running': running,
+        'progress_pct': 25 if running else None,
+        'sync_state': 'matched' if artifacts else 'unknown',
+        'severity': severity,
+        'status_note': status_note,
+        'artifacts': artifacts[:5],
+    }
+
+
+def _read_backup_overview(automation: dict) -> dict:
+    script_entries = {}
+    for e in automation.get('cron', []):
+        cmd_base = os.path.basename((e.get('command', '').strip().split()[0] if e.get('command') else ''))
+        if cmd_base in ('backup-script.sh', 'backup-external.sh'):
+            script_entries[cmd_base] = e
+
+    ssh_base, _ = _build_proxmox_ssh_base()
+    jobs = []
+    for cfg in BACKUP_JOB_DEFS:
+        entry = script_entries.get(cfg['script'])
+        includes = [f"{cfg['source_root']}/{p} -> {cfg['dest_root']}/{p}" for p in cfg['paths']]
+        progress = _running_backup_progress(ssh_base, cfg['script'], cfg['expected_steps'], (entry or {}).get('log_path'))
+        sync_state = _backup_sync_state(entry, progress['running'], cfg['expected_steps'], progress['success_count'])
+
+        status_note = (entry or {}).get('status_note') or 'No run status detected yet.'
+        if progress['running']:
+            status_note = 'Backup is currently running.'
+
+        jobs.append({
+            'id': cfg['id'],
+            'title': cfg['title'],
+            'script': cfg['script'],
+            'includes': includes,
+            'schedule': (entry or {}).get('schedule') or cfg['schedule_hint'],
+            'next_run': (entry or {}).get('next_run'),
+            'last_run': (entry or {}).get('last_seen'),
+            'running': progress['running'],
+            'progress_pct': progress['progress_pct'],
+            'sync_state': sync_state,
+            'severity': (entry or {}).get('severity', 'warn'),
+            'status_note': status_note,
+            'log_path': (entry or {}).get('log_path'),
+        })
+
+    vm = _read_vm_backup_overview()
+    jobs.append(vm)
+
+    coverage = [
+        'Internal: docker-backups, documents, audiobooks, books, games, audiobookshelf, music, other',
+        'External: pictures, videos',
+        'Proxmox VM archives (vzdump) when configured',
+    ]
+
+    overall = 'ok'
+    if any(j.get('severity') == 'crit' for j in jobs):
+        overall = 'crit'
+    elif any(j.get('severity') == 'warn' for j in jobs):
+        overall = 'warn'
+
+    return {
+        'severity': overall,
+        'jobs': jobs,
+        'coverage': coverage,
+    }
+
+
 def _parse_proxmox_cron_line(line: str) -> tuple[str, str] | None:
     s = line.strip()
     if not s or s.startswith('#'):
@@ -1155,34 +1389,14 @@ def _read_host_config() -> dict:
 
 def _read_proxmox_info() -> dict:
     """Best-effort Proxmox backup visibility via optional SSH target env vars."""
-    host = os.environ.get('PROXMOX_SSH_HOST', '').strip()
-    user = os.environ.get('PROXMOX_SSH_USER', 'brandon').strip()
-    password = os.environ.get('PROXMOX_SSH_PASSWORD', '').strip()
-    # Normalize common dotenv encodings.
-    if password.startswith(('"', "'")) and password.endswith(('"', "'")) and len(password) >= 2:
-        password = password[1:-1]
-    password = password.replace('\\#', '#')
-    if not host:
+    ssh_base, err = _build_proxmox_ssh_base()
+    if not ssh_base or err:
         return {
             'severity': 'warn',
             'configured': False,
             'summary': 'Set PROXMOX_SSH_HOST (and key-based SSH) to enable backup visibility',
             'backups': [],
         }
-
-    use_password = bool(password and shutil.which('sshpass'))
-    ssh_base = [
-        'ssh',
-        '-o', f'BatchMode={"no" if use_password else "yes"}',
-        '-o', 'PreferredAuthentications=password,publickey',
-        '-o', 'ConnectTimeout=6',
-        '-o', 'StrictHostKeyChecking=no',
-        '-o', 'UserKnownHostsFile=/dev/null',
-        f'{user}@{host}',
-    ]
-
-    if use_password:
-        ssh_base = ['sshpass', '-p', password] + ssh_base
 
     code, out, err = _run_cmd(ssh_base + ["ls -1t /mnt/backups 2>/dev/null | head -20"], timeout=12)
     if code != 0:
@@ -1271,6 +1485,8 @@ def _collect_extended() -> dict:
         if remote.get('severity') in ('ok', 'warn', 'crit') and entry.get('severity') != 'crit':
             entry['severity'] = remote['severity']
 
+    backups = _read_backup_overview(automation)
+
     if any(e.get('severity') == 'crit' for e in automation.get('cron', []) + automation.get('timers', [])):
         automation['severity'] = 'crit'
     elif any(e.get('severity') == 'warn' for e in automation.get('cron', []) + automation.get('timers', []) + automation.get('automation_containers', [])):
@@ -1278,7 +1494,7 @@ def _collect_extended() -> dict:
     else:
         automation['severity'] = 'ok'
 
-    severities = [repos['severity'], automation['severity'], disks['severity'], network['severity'], docker['severity'], host_cfg['severity'], proxmox['severity']]
+    severities = [repos['severity'], backups['severity'], automation['severity'], disks['severity'], network['severity'], docker['severity'], host_cfg['severity'], proxmox['severity']]
     overall = 'ok'
     if 'crit' in severities:
         overall = 'crit'
@@ -1289,6 +1505,7 @@ def _collect_extended() -> dict:
         'ts': int(time.time()),
         'overall': overall,
         'repos': repos,
+        'backups': backups,
         'automation': automation,
         'disks': disks,
         'network': network,
@@ -1300,7 +1517,7 @@ def _collect_extended() -> dict:
 
 def _overall_from_sections(ext: dict) -> str:
     severities = []
-    for key in ('repos', 'automation', 'disks', 'network', 'docker', 'host_config', 'proxmox'):
+    for key in ('repos', 'backups', 'automation', 'disks', 'network', 'docker', 'host_config', 'proxmox'):
         sev = (ext.get(key) or {}).get('severity') if isinstance(ext.get(key), dict) else None
         if sev:
             severities.append(sev)
