@@ -71,10 +71,12 @@
         .ctr-pill.ok   { border-color: rgba(52,199,89,.3);  }
         .ctr-pill.warn { border-color: rgba(255,159,10,.4); }
         .ctr-pill.crit { border-color: rgba(255,69,58,.4);  }
+        .ctr-pill.idle { border-color: rgba(150,150,150,.25); }
         .ctr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
         .ctr-dot.ok   { background: var(--green);  box-shadow: 0 0 5px var(--green);  }
         .ctr-dot.warn { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); }
         .ctr-dot.crit { background: var(--red);    box-shadow: 0 0 5px var(--red);    animation: pulse 1.5s infinite; }
+        .ctr-dot.idle { background: #666; }
         .ctr-name  { font-weight: 600; }
         .ctr-state { font-size: .68rem; color: var(--muted); }
 
@@ -432,6 +434,7 @@ function renderProblems(snap) {
 
     // Container issues
     (snap.containers || []).forEach(c => {
+        if (c.optional && (c.state === 'missing' || c.state === 'idle')) return; // disposable — not a problem when idle
         if      (c.state === 'missing')    problems.push(`${c.label} — not found (container missing)`);
         else if (c.state === 'stopped')    problems.push(`${c.label} — stopped`);
         else if (c.health === 'unhealthy') problems.push(`${c.label} — running but health check failing`);
@@ -499,11 +502,13 @@ function buildPies(stats) {
 
 // ── Containers ────────────────────────────────────────────────────────────────
 function ctrSev(c) {
+    if (c.state === 'idle') return 'idle';
     if (c.state === 'missing' || c.state === 'stopped') return 'crit';
     if (c.health === 'unhealthy') return 'warn';
     return 'ok';
 }
 function ctrStateLabel(c) {
+    if (c.state === 'idle') return 'idle';
     if (c.state === 'missing') return 'missing';
     if (c.state === 'stopped') return 'stopped';
     if (c.health === 'unhealthy') return 'unhealthy';
@@ -524,10 +529,11 @@ function renderContainers(containers) {
             ${ctrs.map(c => {
                 const sev = ctrSev(c);
                 const lbl = ctrStateLabel(c);
+                const showLabel = sev !== 'ok';
                 return `<div class="ctr-pill ${sev}" title="${c.raw_status || lbl}">
                   <div class="ctr-dot ${sev}"></div>
                   <span class="ctr-name">${c.label}</span>
-                  ${sev !== 'ok' ? `<span class="ctr-state">${lbl}</span>` : ''}
+                  ${showLabel ? `<span class="ctr-state">${lbl}</span>` : ''}
                 </div>`;
             }).join('')}
           </div>

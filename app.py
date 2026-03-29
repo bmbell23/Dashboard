@@ -93,6 +93,8 @@ MONITORED_CONTAINERS = [
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
     {'name': 'dictionary-api', 'label': 'Dictionary',     'category': 'Tools'},
+    {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
+    {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
     {'name': 'dashboard',      'label': 'Dashboard',      'category': 'Infrastructure'},
 ]
@@ -476,7 +478,10 @@ def _read_containers() -> list:
     for c in MONITORED_CONTAINERS:
         raw = live.get(c['name'], '')
         if not raw:
-            state, health = 'missing', None
+            if c.get('optional'):
+                state, health = 'idle', None
+            else:
+                state, health = 'missing', None
         elif raw.lower().startswith('up'):
             state = 'running'
             health = ('unhealthy' if '(unhealthy)' in raw else
@@ -1854,7 +1859,11 @@ def _collect() -> dict:
     for d in drive_inventory:
         if d.get('severity') in ('warn', 'crit'):
             sevs.append(d['severity'])
-    ctr_problem = any(c['state'] != 'running' or c['health'] == 'unhealthy' for c in ctrs)
+    ctr_problem = any(
+        (c['state'] == 'missing' or c['state'] == 'stopped' or c['health'] == 'unhealthy')
+        and not (c.get('optional') and c['state'] == 'idle')
+        for c in ctrs
+    )
     overall = ('crit' if ('crit' in sevs or ctr_problem) else
                'warn' if 'warn' in sevs else 'ok')
 
@@ -2404,6 +2413,169 @@ def infra_history():
         'docker_disk_pct': r[6],
         'nas_disk_pct':   r[7],
     } for r in rows])
+
+# ── Fileshare ─────────────────────────────────────────────────────────────────
+FILESHARE_NET = 'fileshare-net'
+CF_TUNNEL_TOKEN = os.environ.get('CF_TUNNEL_TOKEN', '').strip()
+CF_TUNNEL_HOSTNAME = os.environ.get('CF_TUNNEL_HOSTNAME', '').strip()
+
+
+def _get_tunnel_url():
+    """Return the tunnel URL — stable hostname if using a named tunnel, else scrape logs."""
+    if CF_TUNNEL_HOSTNAME:
+        return f'http://{CF_TUNNEL_HOSTNAME}'
+    try:
+        logs = subprocess.run(
+            ['docker', 'logs', 'fileshare-cloudflared'],
+            capture_output=True, text=True, timeout=5
+        )
+        match = re.search(r'https://[a-z0-9-]+\.trycloudflare\.com', logs.stdout + logs.stderr)
+        return match.group(0) if match else None
+    except Exception:
+        return None
+
+
+def _stop_fileshare():
+    """Remove fileshare containers and network (best-effort)."""
+    subprocess.run(['docker', 'rm', '-f', 'fileshare-miniserve', 'fileshare-cloudflared'],
+                   capture_output=True, timeout=15)
+    subprocess.run(['docker', 'network', 'rm', FILESHARE_NET], capture_output=True, timeout=10)
+
+
+@app.route('/api/browse')
+def browse():
+    """List directory entries for the file browser."""
+    path = request.args.get('path', '/').rstrip('/') or '/'
+    try:
+        entries = []
+        with os.scandir(path) as it:
+            for e in sorted(it, key=lambda x: (not x.is_dir(follow_symlinks=False), x.name.lower())):
+                try:
+                    size = e.stat().st_size if e.is_file(follow_symlinks=False) else None
+                except OSError:
+                    size = None
+                entries.append({
+                    'name':   e.name,
+                    'path':   os.path.join(path, e.name),
+                    'is_dir': e.is_dir(follow_symlinks=False),
+                    'size':   size,
+                })
+        parent = os.path.dirname(path) if path != '/' else None
+        return jsonify({'path': path, 'parent': parent, 'entries': entries})
+    except PermissionError:
+        return jsonify({'error': 'Permission denied'}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/share/start', methods=['POST'])
+def share_start():
+    """Start a Quick Tunnel fileshare for one or more paths."""
+    data = request.get_json() or {}
+    paths = data.get('paths') or ([data['path']] if data.get('path') else [])
+    paths = [p.strip() for p in paths if p.strip()]
+    title = (data.get('title') or 'Quick Share').strip()
+
+    if not paths:
+        return jsonify({'error': 'No paths provided'}), 400
+    for p in paths:
+        if not os.path.exists(p):
+            return jsonify({'error': f'Path not found: {p}'}), 400
+
+    try:
+        _stop_fileshare()
+
+        subprocess.run(
+            ['docker', 'network', 'create', '--driver', 'bridge', FILESHARE_NET],
+            capture_output=True, timeout=10
+        )
+
+        cmd = ['docker', 'run', '-d', '--name', 'fileshare-miniserve', '--network', FILESHARE_NET]
+        for p in paths:
+            name = os.path.basename(p.rstrip('/'))
+            cmd += ['-v', f'{p}:/share/{name}:ro']
+        cmd += ['svenstaro/miniserve:latest', '--interfaces', '0.0.0.0', '--port', '8080',
+                '--title', title, '/share']
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            logger.error(f'Fileshare miniserve start failed: {r.stderr}')
+            return jsonify({'error': r.stderr}), 500
+
+        cf_cmd = ['docker', 'run', '-d', '--name', 'fileshare-cloudflared', '--network', FILESHARE_NET,
+                  'cloudflare/cloudflared:latest', 'tunnel', '--no-autoupdate']
+        if CF_TUNNEL_TOKEN:
+            cf_cmd += ['run', '--token', CF_TUNNEL_TOKEN]
+        else:
+            cf_cmd += ['--url', 'http://fileshare-miniserve:8080']
+        r = subprocess.run(cf_cmd, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            logger.error(f'Fileshare cloudflared start failed: {r.stderr}')
+            return jsonify({'error': r.stderr}), 500
+
+        # Named tunnel URL is known immediately; Quick Tunnel needs log polling
+        if CF_TUNNEL_HOSTNAME:
+            url = f'http://{CF_TUNNEL_HOSTNAME}'
+            # Brief wait for tunnel to come up before returning
+            time.sleep(3)
+        else:
+            url = None
+            for _ in range(20):
+                time.sleep(1)
+                url = _get_tunnel_url()
+                if url:
+                    break
+
+        logger.info(f'Fileshare started: paths={paths} url={url}')
+        return jsonify({'success': True, 'url': url, 'paths': paths})
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Timed out starting fileshare'}), 500
+    except Exception as e:
+        logger.error(f'Fileshare start error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/share/stop', methods=['POST'])
+def share_stop():
+    """Stop and remove fileshare containers."""
+    try:
+        _stop_fileshare()
+        logger.info('Fileshare stopped')
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f'Fileshare stop error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/share/status', methods=['GET'])
+def share_status():
+    """Return current fileshare state: running, URL, and paths being shared."""
+    try:
+        inspect = subprocess.run(
+            ['docker', 'inspect', '--format', '{{.State.Running}}', 'fileshare-cloudflared'],
+            capture_output=True, text=True, timeout=5
+        )
+        running = inspect.stdout.strip() == 'true'
+        url = _get_tunnel_url() if running else None
+
+        paths = []
+        if running:
+            mounts = subprocess.run(
+                ['docker', 'inspect', '--format',
+                 '{{range .Mounts}}{{.Source}}|{{.Destination}}\n{{end}}',
+                 'fileshare-miniserve'],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in mounts.stdout.strip().splitlines():
+                if '|' in line:
+                    src, dst = line.split('|', 1)
+                    if dst.strip().startswith('/share/'):
+                        paths.append(src.strip())
+
+        return jsonify({'running': running, 'url': url, 'paths': paths})
+    except Exception as e:
+        return jsonify({'running': False, 'url': None, 'paths': [], 'error': str(e)})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8001, debug=False)

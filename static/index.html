@@ -418,6 +418,307 @@
             color: var(--black);
         }
 
+        .share-btn {
+            background-color: transparent;
+            color: #9C27B0;
+            border: 1px solid #9C27B0;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .share-btn:hover:not(:disabled) {
+            background-color: #9C27B0;
+            color: var(--white);
+        }
+
+        .stop-share-btn {
+            background-color: transparent;
+            color: #f44336;
+            border: 1px solid #f44336;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .stop-share-btn:hover:not(:disabled) {
+            background-color: #f44336;
+            color: var(--white);
+        }
+
+        /* Share modal */
+        .share-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 2000;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 2rem 0;
+            overflow-y: auto;
+        }
+        .share-modal-overlay.open { display: flex; }
+
+        .share-modal {
+            background: var(--dark-gray);
+            border: 1px solid var(--medium-gray);
+            border-radius: 0.75rem;
+            padding: 1.75rem;
+            width: min(600px, 96vw);
+            box-shadow: var(--shadow);
+        }
+
+        .share-modal h3 {
+            margin: 0 0 1rem;
+            font-size: 1.1rem;
+            color: var(--off-white);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .share-modal label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--light-gray);
+            margin-bottom: 0.35rem;
+            margin-top: 0.9rem;
+        }
+
+        .share-modal input[type="text"] {
+            width: 100%;
+            background: var(--medium-gray);
+            border: 1px solid #444;
+            border-radius: 0.4rem;
+            color: var(--off-white);
+            padding: 0.55rem 0.75rem;
+            font-size: 0.85rem;
+            box-sizing: border-box;
+        }
+        .share-modal input[type="text"]:focus { outline: none; border-color: #9C27B0; }
+
+        /* Active share panel */
+        .share-active-panel {
+            background: #1a2a1a;
+            border: 1px solid #2e5a2e;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .share-active-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: #81C784;
+            margin-bottom: 0.4rem;
+        }
+        .share-active-header span { flex: 1; font-weight: 600; }
+        .share-active-stop {
+            background: transparent;
+            border: 1px solid #f44336;
+            color: #f44336;
+            border-radius: 0.3rem;
+            padding: 0.2rem 0.55rem;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .share-active-stop:hover { background: #f44336; color: #fff; }
+        .share-active-url {
+            display: block;
+            color: #CE93D8;
+            font-size: 0.8rem;
+            font-weight: 600;
+            word-break: break-all;
+            text-decoration: none;
+            margin-bottom: 0.4rem;
+        }
+        .share-active-url:hover { text-decoration: underline; }
+        .share-active-paths {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 0.3rem;
+        }
+
+        /* Quick picks */
+        .share-quick-picks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+        .share-quick-pick {
+            background: transparent;
+            border: 1px solid #555;
+            border-radius: 2rem;
+            color: var(--light-gray);
+            font-size: 0.7rem;
+            padding: 0.25rem 0.65rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .share-quick-pick:hover { border-color: #9C27B0; color: #CE93D8; }
+
+        /* File browser */
+        .filebrowser {
+            border: 1px solid #444;
+            border-radius: 0.4rem;
+            overflow: hidden;
+            margin-top: 0.4rem;
+        }
+        .filebrowser-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--medium-gray);
+            padding: 0.45rem 0.6rem;
+            border-bottom: 1px solid #444;
+        }
+        .filebrowser-up {
+            background: transparent;
+            border: 1px solid #555;
+            color: var(--light-gray);
+            border-radius: 0.3rem;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .filebrowser-up:hover:not(:disabled) { border-color: #9C27B0; color: #CE93D8; }
+        .filebrowser-up:disabled { opacity: 0.35; cursor: default; }
+        .filebrowser-path { font-size: 0.7rem; color: #CE93D8; word-break: break-all; flex: 1; }
+        .filebrowser-list { max-height: 200px; overflow-y: auto; background: #1a1a1a; }
+        .filebrowser-entry {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            transition: background 0.1s;
+            user-select: none;
+        }
+        .filebrowser-entry:last-child { border-bottom: none; }
+        .filebrowser-entry:hover { background: #2a1a33; }
+        .filebrowser-entry.in-cart { background: #2a1a40; }
+        .filebrowser-entry.in-cart .filebrowser-name { color: #CE93D8; }
+        .filebrowser-entry i { width: 1rem; text-align: center; flex-shrink: 0; }
+        .filebrowser-entry i.fa-folder { color: #FFB74D; }
+        .filebrowser-entry i.fa-file-audio { color: #CE93D8; }
+        .filebrowser-entry i.fa-file { color: #aaa; }
+        .filebrowser-name { flex: 1; }
+        .filebrowser-size { color: #666; font-size: 0.7rem; flex-shrink: 0; }
+        .fb-add-dir {
+            background: transparent;
+            border: 1px solid #555;
+            color: #888;
+            border-radius: 0.25rem;
+            padding: 0.1rem 0.35rem;
+            font-size: 0.65rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-left: 0.35rem;
+        }
+        .fb-add-dir:hover { border-color: #9C27B0; color: #CE93D8; }
+        .filebrowser-empty { padding: 1rem; text-align: center; color: #555; font-size: 0.8rem; }
+        .filebrowser-loading { padding: 1rem; text-align: center; color: #666; font-size: 0.8rem; }
+
+        /* Cart */
+        .share-cart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--light-gray);
+        }
+        .share-cart-clear {
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 0.7rem;
+            cursor: pointer;
+            padding: 0;
+        }
+        .share-cart-clear:hover { color: #f44336; }
+        .share-cart {
+            border: 1px solid #333;
+            border-radius: 0.4rem;
+            background: #111;
+            min-height: 2.5rem;
+            max-height: 120px;
+            overflow-y: auto;
+            margin-top: 0.35rem;
+        }
+        .cart-empty { padding: 0.6rem 0.75rem; color: #444; font-size: 0.75rem; font-style: italic; }
+        .cart-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.78rem;
+            color: var(--off-white);
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .cart-item:last-child { border-bottom: none; }
+        .cart-item i { color: #CE93D8; flex-shrink: 0; }
+        .cart-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cart-remove {
+            background: transparent;
+            border: none;
+            color: #555;
+            cursor: pointer;
+            padding: 0 0.2rem;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+        .cart-remove:hover { color: #f44336; }
+
+        /* Starting status */
+        .share-status-panel {
+            margin-top: 0.75rem;
+            background: var(--medium-gray);
+            border-radius: 0.4rem;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            display: none;
+        }
+        .share-status-panel.visible { display: block; }
+        .share-status-url { color: #CE93D8; word-break: break-all; font-weight: 600; margin-top: 0.25rem; }
+        .share-copy-btn {
+            background: transparent;
+            border: 1px solid #9C27B0;
+            color: #CE93D8;
+            border-radius: 0.3rem;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .share-copy-btn:hover { background: #9C27B0; color: var(--white); }
+
+        /* Modal actions */
+        .share-modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+        }
+        .share-modal-actions button {
+            flex: 1;
+            padding: 0.6rem;
+            border-radius: 0.4rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            transition: opacity 0.15s;
+        }
+        .share-modal-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #share-start-btn { background: #9C27B0; color: var(--white); }
+        #share-cancel-btn { background: var(--medium-gray); color: var(--light-gray); }
+
         .action-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -1026,6 +1327,30 @@
                 </div>
 
                 <div class="service-card">
+                    <div class="service-link" style="cursor:default;">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-share-alt"></i>
+                            <span class="service-name">Fileshare</span>
+                        </div>
+                        <div class="service-description">Disposable Quick-Tunnel file sharing</div>
+                    </div>
+                    <div class="service-footer">
+                        <div class="service-url" id="fileshare-url-badge" style="font-size:0.65rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+                        <button class="action-btn download-btn" id="fileshare-copy-btn" onclick="copyShareUrl()" disabled title="Copy share URL">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <div class="service-actions">
+                        <button class="action-btn share-btn" onclick="openShareModal()">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                        <button class="action-btn stop-share-btn" id="fileshare-stop-btn" onclick="stopShare()" disabled>
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
                     <a href="/" class="service-link">
                         <div class="service-header">
                             <i class="service-icon fab fa-docker"></i>
@@ -1046,6 +1371,76 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+    </div>
+
+    <!-- Share modal -->
+    <div class="share-modal-overlay" id="share-modal-overlay">
+        <div class="share-modal" id="share-modal-box">
+            <h3><i class="fas fa-share-alt" style="color:#9C27B0;"></i> Quick Share</h3>
+
+            <!-- Active share panel (shown when a share is running) -->
+            <div class="share-active-panel" id="share-active-panel" style="display:none;">
+                <div class="share-active-header">
+                    <i class="fas fa-circle" style="color:#4CAF50;font-size:0.6rem;"></i>
+                    <span>Currently sharing</span>
+                    <button class="share-active-stop" onclick="stopShare()"><i class="fas fa-stop"></i> Stop</button>
+                </div>
+                <a class="share-active-url" id="share-active-url" href="#" target="_blank" rel="noopener"></a>
+                <button class="share-copy-btn" onclick="copyShareUrl()" style="margin-bottom:0.4rem;">
+                    <i class="fas fa-copy"></i> Copy URL
+                </button>
+                <div class="share-active-paths" id="share-active-paths"></div>
+            </div>
+
+            <label>Quick picks</label>
+            <div class="share-quick-picks">
+                <button class="share-quick-pick" onclick="browseNav('/mnt/boston/media/audiobooks')">audiobooks/</button>
+                <button class="share-quick-pick" onclick="browseNav('/mnt/boston/media')">media/</button>
+                <button class="share-quick-pick" onclick="browseNav('/mnt/boston/documents')">documents/</button>
+                <button class="share-quick-pick" onclick="browseNav('/mnt/ssd250')">ssd250/</button>
+                <button class="share-quick-pick" onclick="browseNav('/mnt/boston')">boston/</button>
+            </div>
+
+            <label>Browse — click files/folders to add to cart</label>
+            <div class="filebrowser" id="filebrowser">
+                <div class="filebrowser-bar">
+                    <button class="filebrowser-up" id="fb-up-btn" onclick="browseUp()" disabled title="Go up">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                    <span class="filebrowser-path" id="fb-path">—</span>
+                    <button class="filebrowser-up" onclick="fbAddCurrentDir()" title="Add this folder to cart" style="flex-shrink:0;">
+                        <i class="fas fa-folder-plus"></i> Add folder
+                    </button>
+                </div>
+                <div class="filebrowser-list" id="fb-list">
+                    <div class="filebrowser-empty">Pick a quick pick above to start browsing</div>
+                </div>
+            </div>
+
+            <div class="share-cart-header">
+                <span>Files to share (<span id="cart-count">0</span>)</span>
+                <button class="share-cart-clear" onclick="cartClear()">Clear all</button>
+            </div>
+            <div class="share-cart" id="share-cart">
+                <div class="cart-empty">No files added yet</div>
+            </div>
+
+            <label for="share-title-input" style="margin-top:0.9rem;">Page title <span style="color:#666;">(optional)</span></label>
+            <input type="text" id="share-title-input" placeholder="Quick Share" />
+
+            <div class="share-status-panel" id="share-status-panel">
+                <span id="share-status-label" style="color:var(--light-gray);">Starting…</span>
+                <div class="share-status-url" id="share-status-url"></div>
+                <button class="share-copy-btn" id="share-copy-btn" onclick="copyShareUrl()" style="display:none;">
+                    <i class="fas fa-copy"></i> Copy URL
+                </button>
+            </div>
+
+            <div class="share-modal-actions">
+                <button id="share-start-btn" onclick="startShare()"><i class="fas fa-play"></i> Start Share</button>
+                <button id="share-cancel-btn" onclick="closeShareModal()">Close</button>
             </div>
         </div>
     </div>
@@ -1280,6 +1675,327 @@
                 btn.classList.remove('loading');
             }
         }
+
+        // --- Fileshare ---
+        let _shareUrl = null;
+        let _fbCurrentPath = null;
+        let _shareCart = []; // [{path, name, isDir}]
+
+        function _fmtSize(bytes) {
+            if (bytes == null) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(2) + ' GB';
+        }
+
+        function _fileIcon(entry) {
+            if (entry.is_dir) return 'fas fa-folder';
+            const ext = (entry.name.split('.').pop() || '').toLowerCase();
+            const audio = ['mp3','m4b','m4a','ogg','flac','aac','opus','wav'];
+            const video = ['mp4','mkv','avi','mov','wmv','webm'];
+            const image = ['jpg','jpeg','png','gif','webp','svg'];
+            if (audio.includes(ext)) return 'fas fa-file-audio';
+            if (video.includes(ext)) return 'fas fa-file-video';
+            if (image.includes(ext)) return 'fas fa-file-image';
+            return 'fas fa-file';
+        }
+
+        // ----- Cart -----
+        function cartAdd(path, name, isDir) {
+            if (_shareCart.some(i => i.path === path)) return; // already in cart
+            _shareCart.push({ path, name, isDir });
+            renderCart();
+        }
+
+        function cartRemove(path) {
+            _shareCart = _shareCart.filter(i => i.path !== path);
+            renderCart();
+            // refresh in-cart highlights in file list
+            document.querySelectorAll('#fb-list .filebrowser-entry').forEach(el => {
+                if (el.dataset.path === path) el.classList.remove('in-cart');
+            });
+        }
+
+        function cartClear() {
+            _shareCart = [];
+            renderCart();
+            document.querySelectorAll('#fb-list .filebrowser-entry.in-cart')
+                .forEach(el => el.classList.remove('in-cart'));
+        }
+
+        function renderCart() {
+            const el = document.getElementById('share-cart');
+            const count = document.getElementById('cart-count');
+            count.textContent = _shareCart.length;
+            if (!_shareCart.length) {
+                el.innerHTML = '<div class="cart-empty">No files added yet</div>';
+                return;
+            }
+            el.innerHTML = _shareCart.map(item => `
+                <div class="cart-item">
+                    <i class="${item.isDir ? 'fas fa-folder' : 'fas fa-file'}"></i>
+                    <span class="cart-item-name" title="${item.path}">${item.name}</span>
+                    <button class="cart-remove" data-cart-remove="${item.path.replace(/"/g,'&quot;')}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>`).join('');
+        }
+
+        // ----- File browser -----
+        let _lastFileClickIdx = null;
+
+        async function browseNav(path) {
+            _fbCurrentPath = path;
+            _lastFileClickIdx = null;
+            const list = document.getElementById('fb-list');
+            const pathEl = document.getElementById('fb-path');
+            const upBtn = document.getElementById('fb-up-btn');
+            list.innerHTML = '<div class="filebrowser-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+            pathEl.textContent = path;
+            upBtn.disabled = path === '/';
+            try {
+                const r = await fetch(`${API_URL}/browse?path=${encodeURIComponent(path)}`);
+                const d = await r.json();
+                if (!r.ok) { list.innerHTML = `<div class="filebrowser-empty">${d.error}</div>`; return; }
+                if (!d.entries.length) { list.innerHTML = '<div class="filebrowser-empty">Empty directory</div>'; return; }
+                list.innerHTML = d.entries.map(e => {
+                    const inCart = _shareCart.some(i => i.path === e.path) ? ' in-cart' : '';
+                    const right = e.is_dir
+                        ? `<button class="fb-add-dir" data-add-dir="${e.path.replace(/"/g,'&quot;')}" data-add-dir-name="${e.name.replace(/"/g,'&quot;')}" title="Add folder to cart"><i class="fas fa-plus"></i></button>`
+                        : `<span class="filebrowser-size">${_fmtSize(e.size)}</span>`;
+                    return `<div class="filebrowser-entry${inCart}"
+                                 data-path="${e.path.replace(/"/g,'&quot;')}"
+                                 data-name="${e.name.replace(/"/g,'&quot;')}"
+                                 data-isdir="${e.is_dir}">
+                                <i class="${_fileIcon(e)}"></i>
+                                <span class="filebrowser-name">${e.name}</span>
+                                ${right}
+                            </div>`;
+                }).join('');
+            } catch(e) {
+                list.innerHTML = `<div class="filebrowser-empty">Error: ${e.message}</div>`;
+            }
+        }
+
+        function browseUp() {
+            if (!_fbCurrentPath) return;
+            const parent = _fbCurrentPath.replace(/\/+$/, '').split('/').slice(0, -1).join('/') || '/';
+            browseNav(parent);
+        }
+
+        function fbAddCurrentDir() {
+            if (!_fbCurrentPath) return;
+            const name = _fbCurrentPath.replace(/\/+$/, '').split('/').pop() || _fbCurrentPath;
+            cartAdd(_fbCurrentPath, name, true);
+        }
+
+        // Event delegation for file browser clicks
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('fb-list').addEventListener('click', function(e) {
+                // Folder + button — add dir to cart without navigating
+                const addDirBtn = e.target.closest('[data-add-dir]');
+                if (addDirBtn) {
+                    cartAdd(addDirBtn.dataset.addDir, addDirBtn.dataset.addDirName, true);
+                    return;
+                }
+
+                const entry = e.target.closest('.filebrowser-entry');
+                if (!entry) return;
+                const path = entry.dataset.path;
+                const name = entry.dataset.name;
+                const isDir = entry.dataset.isdir === 'true';
+
+                if (isDir) {
+                    browseNav(path);
+                    return;
+                }
+
+                // File click — support shift+click range select
+                const allEntries = [...document.querySelectorAll('#fb-list .filebrowser-entry[data-isdir="false"]')];
+                const idx = allEntries.indexOf(entry);
+
+                if (e.shiftKey && _lastFileClickIdx !== null) {
+                    const start = Math.min(_lastFileClickIdx, idx);
+                    const end   = Math.max(_lastFileClickIdx, idx);
+                    for (let i = start; i <= end; i++) {
+                        const el = allEntries[i];
+                        const p = el.dataset.path, n = el.dataset.name;
+                        if (!_shareCart.some(c => c.path === p)) {
+                            cartAdd(p, n, false);
+                            el.classList.add('in-cart');
+                        }
+                    }
+                } else {
+                    if (_shareCart.some(c => c.path === path)) {
+                        cartRemove(path);
+                        entry.classList.remove('in-cart');
+                    } else {
+                        cartAdd(path, name, false);
+                        entry.classList.add('in-cart');
+                    }
+                    _lastFileClickIdx = idx;
+                }
+            });
+
+            // Cart remove buttons (delegated)
+            document.getElementById('share-cart').addEventListener('click', function(e) {
+                const btn = e.target.closest('[data-cart-remove]');
+                if (!btn) return;
+                cartRemove(btn.dataset.cartRemove);
+            });
+
+            // ESC closes modal; click overlay background closes modal
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape') closeShareModal();
+            });
+            document.getElementById('share-modal-overlay').addEventListener('click', e => {
+                if (e.target === document.getElementById('share-modal-overlay')) closeShareModal();
+            });
+        });
+
+        // ----- Share status / badge -----
+        async function checkShareStatus() {
+            try {
+                const r = await fetch(`${API_URL}/share/status`);
+                const d = await r.json();
+                const badge = document.getElementById('fileshare-url-badge');
+                const copyBtn = document.getElementById('fileshare-copy-btn');
+                const stopBtn = document.getElementById('fileshare-stop-btn');
+                if (d.running) {
+                    _shareUrl = d.url;
+                    badge.textContent = d.url ? d.url.replace('http://', '') : 'tunnel starting…';
+                    badge.style.color = '#CE93D8';
+                    if (copyBtn) { copyBtn.disabled = !d.url; }
+                    if (stopBtn) { stopBtn.disabled = false; }
+                } else {
+                    _shareUrl = null;
+                    badge.textContent = '';
+                    if (copyBtn) { copyBtn.disabled = true; }
+                    if (stopBtn) { stopBtn.disabled = true; }
+                }
+                _updateActivePanel(d);
+            } catch (_) {}
+        }
+
+        function _updateActivePanel(status) {
+            const panel = document.getElementById('share-active-panel');
+            if (!status || !status.running) {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = '';
+            const urlEl = document.getElementById('share-active-url');
+            urlEl.textContent = status.url || 'Tunnel starting…';
+            urlEl.href = status.url || '#';
+            const pathsEl = document.getElementById('share-active-paths');
+            if (status.paths && status.paths.length) {
+                pathsEl.textContent = status.paths.join(' · ');
+            } else {
+                pathsEl.textContent = '';
+            }
+        }
+
+        // ----- Modal open / close -----
+        function openShareModal() {
+            document.getElementById('share-modal-overlay').classList.add('open');
+            document.getElementById('share-status-panel').classList.remove('visible');
+            document.getElementById('share-start-btn').disabled = false;
+            document.getElementById('share-start-btn').innerHTML = '<i class="fas fa-play"></i> Start Share';
+            checkShareStatus();
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal-overlay').classList.remove('open');
+        }
+
+        // ----- Clipboard -----
+        function _copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+            document.body.appendChild(el);
+            el.focus(); el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            return Promise.resolve();
+        }
+
+        function copyShareUrl() {
+            if (_shareUrl) {
+                _copyText(_shareUrl).then(() => showToast('URL copied!', 'success'));
+            }
+        }
+
+        // ----- Start / Stop -----
+        async function startShare() {
+            if (!_shareCart.length) { showToast('Add at least one file or folder to the cart first', 'error'); return; }
+            const title = document.getElementById('share-title-input').value.trim();
+
+            const startBtn = document.getElementById('share-start-btn');
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting…';
+
+            const panel = document.getElementById('share-status-panel');
+            panel.classList.add('visible');
+            document.getElementById('share-status-label').textContent = 'Starting tunnel — this may take up to 20 seconds…';
+            document.getElementById('share-status-url').textContent = '';
+            document.getElementById('share-copy-btn').style.display = 'none';
+
+            try {
+                const r = await fetch(`${API_URL}/share/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paths: _shareCart.map(i => i.path), title })
+                });
+                const d = await r.json();
+                if (r.ok) {
+                    _shareUrl = d.url;
+                    document.getElementById('share-status-label').textContent = d.url ? '✓ Share is live:' : '✓ Running (URL still loading)';
+                    document.getElementById('share-status-url').textContent = d.url || '';
+                    if (d.url) {
+                        document.getElementById('share-copy-btn').style.display = '';
+                        _copyText(d.url).catch(() => {});
+                        showToast('Share started — URL copied!', 'success');
+                    } else {
+                        showToast('Share started', 'success');
+                    }
+                    checkShareStatus();
+                } else {
+                    document.getElementById('share-status-label').textContent = 'Error: ' + (d.error || 'unknown');
+                    showToast(d.error || 'Failed to start share', 'error');
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fas fa-play"></i> Start Share';
+                }
+            } catch (e) {
+                document.getElementById('share-status-label').textContent = 'Network error';
+                showToast('Network error: ' + e.message, 'error');
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-play"></i> Start Share';
+            }
+        }
+
+        async function stopShare() {
+            try {
+                const r = await fetch(`${API_URL}/share/stop`, { method: 'POST' });
+                const d = await r.json();
+                if (r.ok) {
+                    showToast('Fileshare stopped', 'success');
+                    checkShareStatus();
+                    document.getElementById('share-status-panel').classList.remove('visible');
+                } else {
+                    showToast(d.error || 'Failed to stop share', 'error');
+                }
+            } catch (e) {
+                showToast('Network error: ' + e.message, 'error');
+            }
+        }
+
+        // Poll share status on page load
+        checkShareStatus();
 
         // --- Bookmarks Dropdown ---
         const bmToggle = document.getElementById('bookmarks-toggle');
