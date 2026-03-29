@@ -171,9 +171,9 @@ DRIVE_LAYOUT = [
         'name': 'flash drive',
         'device': 'sde',
         'category': 'external',
-        'mountpoint': None,
+        'mountpoint': '/mnt/flash',
         'size_gb_hint': 14,
-        'purpose': 'Temporary portable storage',
+        'purpose': 'Temporary portable storage (ext4, label: flash-drive)',
     },
 ]
 
@@ -381,7 +381,7 @@ def _read_drive_inventory_remote() -> list[dict]:
             })
         return out
 
-    df_cmd = "df -B1 --output=target,size,used,pcent / /mnt/boston /mnt/backups /mnt/external /mnt/ssd250 /mnt/allston 2>/dev/null | tail -n +2"
+    df_cmd = "df -B1 --output=target,size,used,pcent / /mnt/boston /mnt/backups /mnt/external /mnt/ssd250 /mnt/allston /mnt/flash 2>/dev/null | tail -n +2"
     c_df, out_df, _ = _run_cmd(ssh_base + [df_cmd], timeout=12)
     by_mount: dict[str, dict] = {}
     if c_df == 0 and out_df:
@@ -1104,11 +1104,99 @@ def _read_vm_backup_overview() -> dict:
     }
 
 
+def _read_config_backup_overview(cron_entry: dict | None = None) -> dict:
+    """Best-effort Proxmox config backup visibility."""
+    user_base, _ = _build_proxmox_ssh_base()
+
+    schedule = (cron_entry or {}).get('schedule') or '0 2 * * *'
+    next_run = (cron_entry or {}).get('next_run') or _cron_next_run('0 2 * * *')
+
+    base_info: dict = {
+        'id': 'proxmox_config',
+        'title': 'Daily Proxmox config backup',
+        'includes': [
+            '/etc/pve → /mnt/boston/proxmox-config-backups (Proxmox config: VMs, storage, network, users)',
+            '/etc/network, /etc/fstab, /etc/hostname, /etc/hosts',
+            '/etc/udev/rules.d (automount rules)',
+            '/home/brandon (scripts, dotfiles)',
+        ],
+        'schedule': schedule,
+        'next_run': next_run,
+        'last_run': None,
+        'running': False,
+        'progress_pct': None,
+        'sync_state': 'unknown',
+        'severity': 'warn',
+        'status_note': 'No config backup archives found.',
+        'log_path': '/mnt/boston/proxmox-config-backups/',
+    }
+
+    if not user_base:
+        base_info['status_note'] = 'Proxmox SSH not configured for config backup visibility.'
+        return base_info
+
+    archives_cmd = "ls -1t /mnt/boston/proxmox-config-backups/proxmox-config-*.tar.gz 2>/dev/null | head -5"
+    c, out, _ = _run_cmd(user_base + [archives_cmd], timeout=12)
+    artifacts = [ln.strip() for ln in out.splitlines() if ln.strip()] if c == 0 else []
+
+    last_run = None
+    if artifacts:
+        c2, ts, _ = _run_cmd(user_base + [f"date -r '{artifacts[0]}' --iso-8601=seconds"], timeout=8)
+        if c2 == 0 and ts:
+            last_run = ts.strip()
+
+    running = False
+    c3, p_out, _ = _run_cmd(user_base + ["pgrep -af 'proxmox-config-backup.sh' | grep -v grep"], timeout=8)
+    if c3 == 0 and p_out.strip():
+        running = True
+
+    total_size_gb = None
+    if artifacts:
+        c4, sz_out, _ = _run_cmd(user_base + ["du -sb /mnt/boston/proxmox-config-backups/ 2>/dev/null | awk '{print $1}'"], timeout=8)
+        if c4 == 0 and sz_out.strip().isdigit():
+            try:
+                total_size_gb = round(int(sz_out.strip()) / 1e9, 1)
+            except Exception:
+                pass
+
+    sync_state = 'unknown'
+    severity = 'warn'
+    if artifacts:
+        sync_state = 'matched'
+        severity = 'ok'
+        c5, age_out, _ = _run_cmd(user_base + [f"echo $(( $(date +%s) - $(date -r '{artifacts[0]}' +%s) ))"], timeout=8)
+        if c5 == 0 and age_out.strip().isdigit():
+            age_hours = int(age_out.strip()) / 3600
+            if age_hours > 25:
+                sync_state = 'skipped'
+                severity = 'warn'
+
+    status_note = 'No config backup archives found.'
+    if running:
+        status_note = 'Config backup is currently running.'
+        severity = 'warn'
+        sync_state = 'running'
+    elif artifacts:
+        count = len(artifacts)
+        size_str = f"~{total_size_gb} GB total" if total_size_gb is not None else "size unknown"
+        status_note = f"Detected {count} config archive(s) ({size_str})."
+
+    return {
+        **base_info,
+        'last_run': last_run,
+        'running': running,
+        'progress_pct': 50 if running else None,
+        'sync_state': sync_state,
+        'severity': severity,
+        'status_note': status_note,
+    }
+
+
 def _read_backup_overview(automation: dict) -> dict:
     script_entries = {}
     for e in automation.get('cron', []):
         cmd_base = os.path.basename((e.get('command', '').strip().split()[0] if e.get('command') else ''))
-        if cmd_base in ('backup-script.sh', 'backup-external.sh'):
+        if cmd_base in ('backup-script.sh', 'backup-external.sh', 'proxmox-config-backup.sh'):
             script_entries[cmd_base] = e
 
     ssh_base, _ = _build_proxmox_ssh_base()
@@ -1142,10 +1230,14 @@ def _read_backup_overview(automation: dict) -> dict:
     vm = _read_vm_backup_overview()
     jobs.append(vm)
 
+    config = _read_config_backup_overview(script_entries.get('proxmox-config-backup.sh'))
+    jobs.append(config)
+
     coverage = [
         'Internal: docker-backups, documents, audiobooks, books, games, audiobookshelf, music, other',
         'External: pictures, videos',
-        'Proxmox VM archives (vzdump) when configured',
+        'Proxmox config: /etc/pve, /etc/network, /etc/fstab, /etc/udev, /home/brandon',
+        'Proxmox VM archives (vzdump) — managed by Proxmox scheduler (root)',
     ]
 
     overall = 'ok'
