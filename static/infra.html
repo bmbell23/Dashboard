@@ -47,6 +47,8 @@
         .section-title { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 1rem; }
 
         /* ── Metric bars ── */
+        .metrics-row-wrap { display: flex; flex-direction: column; gap: .9rem; }
+        .metrics-row-title { font-size: .66rem; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); margin-bottom: .45rem; }
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
         .metric-card { background: var(--card); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem 1.2rem; }
         .metric-label { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .4rem; }
@@ -164,7 +166,7 @@
 <!-- Server Metrics -->
 <div class="section">
     <div class="section-title">Server Metrics</div>
-    <div class="metrics-grid" id="metrics-grid"></div>
+    <div class="metrics-row-wrap" id="metrics-grid"></div>
 </div>
 
 <!-- Resource Consumers -->
@@ -324,7 +326,7 @@ function sevTag(sev) {
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 function renderMetrics(snap) {
-    const metrics = [
+        const systemMetrics = [
         { key: 'cpu',         label: 'CPU',         val: snap.cpu.pct + '%',
           sub: '',            pct: snap.cpu.pct,    sev: snap.cpu.severity },
         { key: 'ram',         label: 'RAM',
@@ -335,40 +337,63 @@ function renderMetrics(snap) {
           val: fmtMB(snap.swap.used_mb),
           sub: 'of ' + fmtMB(snap.swap.total_mb),
           pct: snap.swap.pct, sev: snap.swap.severity },
-                { key: 'nas_disk',    label: 'Boston (source)',
-                    val: snap.nas_disk.used_gb + ' GB',
-                    sub: 'of ' + snap.nas_disk.total_gb + ' GB',
-                    pct: snap.nas_disk.pct, sev: snap.nas_disk.severity },
-                { key: 'backups_disk', label: 'Backups (internal)',
-                    val: (snap.backups_disk?.used_gb ?? 0) + ' GB',
-                    sub: 'of ' + (snap.backups_disk?.total_gb ?? 0) + ' GB',
-                    pct: snap.backups_disk?.pct ?? 0, sev: snap.backups_disk?.severity ?? 'ok' },
-                { key: 'external_disk', label: 'External (media)',
-                    val: (snap.external_disk?.used_gb ?? 0) + ' GB',
-                    sub: 'of ' + (snap.external_disk?.total_gb ?? 0) + ' GB',
-                    pct: snap.external_disk?.pct ?? 0, sev: snap.external_disk?.severity ?? 'ok' },
-                { key: 'ssd250_disk', label: 'SSD250 (VM store)',
-                    val: (snap.ssd250_disk?.used_gb ?? 0) + ' GB',
-                    sub: 'of ' + (snap.ssd250_disk?.total_gb ?? 0) + ' GB',
-                    pct: snap.ssd250_disk?.pct ?? 0, sev: snap.ssd250_disk?.severity ?? 'ok' },
-                { key: 'docker_disk', label: 'Docker disk view',
-          val: snap.docker_disk.used_gb + ' GB',
-          sub: 'of ' + snap.docker_disk.total_gb + ' GB',
-          pct: snap.docker_disk.pct, sev: snap.docker_disk.severity },
     ];
+
+        const drives = snap.drive_inventory || [];
+        const internalMetrics = drives
+                .filter(d => d.category === 'internal')
+                .map(d => ({
+                        key: d.id,
+                        label: `${d.name} (${d.device})`,
+                        val: d.mounted === false ? 'Not mounted' : `${d.used_gb} GB`,
+                        sub: d.mounted === false
+                                ? `${d.mountpoint || 'n/a'} - ${d.purpose}`
+                                : `of ${d.total_gb} GB - ${d.mountpoint || 'n/a'}`,
+                        pct: d.mounted === false ? 0 : d.pct,
+                        sev: d.severity || 'warn',
+                }));
+
+        const externalMetrics = drives
+                .filter(d => d.category === 'external')
+                .map(d => ({
+                        key: d.id,
+                        label: `${d.name} (${d.device})`,
+                        val: d.mounted === false ? 'Not mounted' : `${d.used_gb} GB`,
+                        sub: d.mounted === false
+                                ? `${d.mountpoint || 'n/a'} - ${d.purpose}`
+                                : `of ${d.total_gb} GB - ${d.mountpoint || 'n/a'}`,
+                        pct: d.mounted === false ? 0 : d.pct,
+                        sev: d.severity || 'warn',
+                }));
+
+        const renderCards = metrics => metrics.map(m => {
+                const th = t[m.key] || {};
+                const warnTick = th.warn ? `<div class="bar-tick" style="left:${th.warn}%"></div>` : '';
+                const critTick = th.crit ? `<div class="bar-tick" style="left:${th.crit}%"></div>` : '';
+                return `<div class="metric-card">
+                    <div class="metric-label">${m.label}</div>
+                    <div class="metric-value" style="color:var(--${m.sev === 'ok' ? 'white' : m.sev === 'warn' ? 'yellow' : 'red'})">${m.val}</div>
+                    ${m.sub ? `<div class="metric-sub">${m.sub}</div>` : ''}
+                    <div class="bar-ticks">${warnTick}${critTick}</div>
+                    <div class="bar-track"><div class="bar-fill ${m.sev}" style="width:${Math.min(m.pct,100)}%"></div></div>
+                </div>`;
+        }).join('');
+
     const t = snap.thresholds;
-    $('metrics-grid').innerHTML = metrics.map(m => {
-        const th = t[m.key] || {};
-        const warnTick = th.warn ? `<div class="bar-tick" style="left:${th.warn}%"></div>` : '';
-        const critTick = th.crit ? `<div class="bar-tick" style="left:${th.crit}%"></div>` : '';
-        return `<div class="metric-card">
-          <div class="metric-label">${m.label}</div>
-          <div class="metric-value" style="color:var(--${m.sev === 'ok' ? 'white' : m.sev === 'warn' ? 'yellow' : 'red'})">${m.val}</div>
-          ${m.sub ? `<div class="metric-sub">${m.sub}</div>` : ''}
-          <div class="bar-ticks">${warnTick}${critTick}</div>
-          <div class="bar-track"><div class="bar-fill ${m.sev}" style="width:${Math.min(m.pct,100)}%"></div></div>
-        </div>`;
-    }).join('');
+        $('metrics-grid').innerHTML = `
+            <div>
+                <div class="metrics-row-title">System</div>
+                <div class="metrics-grid">${renderCards(systemMetrics)}</div>
+            </div>
+            <div>
+                <div class="metrics-row-title">Internal Drives</div>
+                <div class="metrics-grid">${renderCards(internalMetrics)}</div>
+            </div>
+            <div>
+                <div class="metrics-row-title">External Drives</div>
+                <div class="metrics-grid">${renderCards(externalMetrics)}</div>
+            </div>
+        `;
 }
 
 // ── Problems list ─────────────────────────────────────────────────────────────
@@ -384,15 +409,24 @@ function renderProblems(snap) {
         ram: 'RAM',
         swap: 'Swap',
         docker_disk: 'Docker disk',
+        nvme_disk: 'NVMe disk',
         nas_disk: 'Boston source disk',
         backups_disk: 'Backups disk',
         external_disk: 'External disk',
         ssd250_disk: 'SSD250 disk',
+        allston_disk: 'Allston disk',
+        flash_disk: 'Flash drive',
     };
-    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nas_disk','nas_disk'],['backups_disk','backups_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk']].forEach(([key, sk]) => {
+    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nvme_disk','nvme_disk'],['nas_disk','nas_disk'],['backups_disk','backups_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk'],['allston_disk','allston_disk'],['flash_disk','flash_disk']].forEach(([key, sk]) => {
         const m = snap[key];
         if (m && m.severity && m.severity !== 'ok') {
             problems.push(`${metricLabels[sk]} at ${m.pct}% — ${m.severity === 'crit' ? 'critical' : 'elevated'}`);
+        }
+    });
+
+    (snap.drive_inventory || []).forEach(d => {
+        if (d.mounted === false) {
+            problems.push(`${d.name} (${d.device}) is not mounted at ${d.mountpoint || 'n/a'}`);
         }
     });
 

@@ -106,7 +106,76 @@ THRESHOLDS = {
     'nas_disk':    {'warn': 85, 'crit': 93},
     'backups_disk': {'warn': 85, 'crit': 93},
     'external_disk': {'warn': 85, 'crit': 93},
+    'nvme_disk': {'warn': 85, 'crit': 93},
+    'allston_disk': {'warn': 85, 'crit': 93},
+    'flash_disk': {'warn': 90, 'crit': 98},
 }
+
+DRIVE_LAYOUT = [
+    {
+        'id': 'nvme_disk',
+        'name': 'nvme',
+        'device': 'nvme0n1',
+        'category': 'internal',
+        'mountpoint': '/',
+        'size_gb_hint': 233,
+        'purpose': 'Proxmox OS, VM disks, swap',
+    },
+    {
+        'id': 'nas_disk',
+        'name': 'boston',
+        'device': 'sda',
+        'category': 'internal',
+        'mountpoint': '/mnt/boston',
+        'size_gb_hint': 7300,
+        'purpose': 'VM backups, bulk storage',
+    },
+    {
+        'id': 'ssd250_disk',
+        'name': 'ssd250',
+        'device': 'sdb',
+        'category': 'internal',
+        'mountpoint': '/mnt/ssd250',
+        'size_gb_hint': 224,
+        'purpose': 'Extra VM storage',
+    },
+    {
+        'id': 'backups_disk',
+        'name': 'backups',
+        'device': 'sdc',
+        'category': 'internal',
+        'mountpoint': '/mnt/backups',
+        'size_gb_hint': 932,
+        'purpose': 'Local file backups',
+    },
+    {
+        'id': 'allston_disk',
+        'name': 'allston',
+        'device': 'sdd',
+        'category': 'external',
+        'mountpoint': '/mnt/allston',
+        'size_gb_hint': 1800,
+        'purpose': 'Planned Proxmox ISOs',
+    },
+    {
+        'id': 'external_disk',
+        'name': 'external',
+        'device': 'sdf',
+        'category': 'external',
+        'mountpoint': '/mnt/external',
+        'size_gb_hint': 1800,
+        'purpose': 'Personal files and media',
+    },
+    {
+        'id': 'flash_disk',
+        'name': 'flash drive',
+        'device': 'sde',
+        'category': 'external',
+        'mountpoint': None,
+        'size_gb_hint': 14,
+        'purpose': 'Temporary portable storage',
+    },
+]
 
 PROJECTS_ROOT = '/home/brandon/projects'
 
@@ -293,6 +362,100 @@ def _read_proxmox_disks_remote() -> dict[str, dict]:
             'pct': pct,
         }
     return result
+
+
+def _read_drive_inventory_remote() -> list[dict]:
+    """Return full 7-drive inventory with mount status and usage from Proxmox when available."""
+    ssh_base, _ = _build_proxmox_ssh_base()
+    if not ssh_base:
+        out = []
+        for d in DRIVE_LAYOUT:
+            out.append({
+                **d,
+                'mounted': False if d.get('mountpoint') else None,
+                'used_gb': 0,
+                'total_gb': d.get('size_gb_hint', 0),
+                'pct': 0,
+                'severity': 'warn',
+                'source': 'hint',
+            })
+        return out
+
+    df_cmd = "df -B1 --output=target,size,used,pcent / /mnt/boston /mnt/backups /mnt/external /mnt/ssd250 /mnt/allston 2>/dev/null | tail -n +2"
+    c_df, out_df, _ = _run_cmd(ssh_base + [df_cmd], timeout=12)
+    by_mount: dict[str, dict] = {}
+    if c_df == 0 and out_df:
+        for ln in out_df.splitlines():
+            p = ln.split()
+            if len(p) < 4:
+                continue
+            try:
+                target = p[0]
+                size = int(p[1])
+                used = int(p[2])
+                pct = int(p[3].rstrip('%'))
+            except Exception:
+                continue
+            by_mount[target] = {
+                'used_gb': round(used / 1e9, 1),
+                'total_gb': round(size / 1e9, 1),
+                'pct': pct,
+            }
+
+    lsblk_cmd = "lsblk -b -P -o NAME,SIZE,TYPE,MOUNTPOINT,RM,MODEL 2>/dev/null"
+    c_lb, out_lb, _ = _run_cmd(ssh_base + [lsblk_cmd], timeout=12)
+    by_device: dict[str, dict] = {}
+    if c_lb == 0 and out_lb:
+        for ln in out_lb.splitlines():
+            kv = dict(re.findall(r'(\w+)="([^"]*)"', ln))
+            name = kv.get('NAME')
+            typ = kv.get('TYPE')
+            if not name or typ != 'disk':
+                continue
+            try:
+                size = int(kv.get('SIZE', '0'))
+            except Exception:
+                size = 0
+            by_device[name] = {
+                'size_gb': round(size / 1e9, 1),
+                'model': kv.get('MODEL') or None,
+                'rm': kv.get('RM') == '1',
+            }
+
+    out: list[dict] = []
+    for d in DRIVE_LAYOUT:
+        mount = d.get('mountpoint')
+        m = by_mount.get(mount) if mount else None
+        dev = by_device.get(d['device'])
+        total_gb = (m or {}).get('total_gb', dev.get('size_gb') if dev else d.get('size_gb_hint', 0))
+        used_gb = (m or {}).get('used_gb', 0)
+        pct = (m or {}).get('pct', 0)
+
+        if m:
+            sev = _sev(pct, d['id']) if d['id'] in THRESHOLDS else ('crit' if pct >= 93 else 'warn' if pct >= 85 else 'ok')
+            mounted = True
+            source = 'df'
+        else:
+            mounted = False if mount else None
+            if dev:
+                sev = 'warn' if mount else 'ok'
+                source = 'lsblk'
+            else:
+                sev = 'warn'
+                source = 'hint'
+
+        out.append({
+            **d,
+            'model': (dev or {}).get('model'),
+            'removable': (dev or {}).get('rm'),
+            'mounted': mounted,
+            'used_gb': used_gb,
+            'total_gb': total_gb,
+            'pct': pct,
+            'severity': sev,
+            'source': source,
+        })
+    return out
 
 
 def _read_containers() -> list:
@@ -1538,6 +1701,7 @@ def _collect() -> dict:
     external   = _read_disk('/mnt/external')
     ctrs       = _read_containers()
     ctr_stats  = _read_container_stats()   # per-container CPU/RAM for pie charts
+    drive_inventory = _read_drive_inventory_remote()
 
     # Many hosts map Docker data onto /mnt/ssd250; use it when /mnt/docker is unavailable.
     docker_effective = dsk if dsk.get('total_gb', 0) > 0 else ssd250
@@ -1558,6 +1722,9 @@ def _collect() -> dict:
             _sev(docker_effective['pct'], 'docker_disk'), _sev(ssd250['pct'], 'ssd250_disk'),
             _sev(nas['pct'], 'nas_disk'), _sev(backups['pct'], 'backups_disk'),
             _sev(external['pct'], 'external_disk')]
+    for d in drive_inventory:
+        if d.get('severity') in ('warn', 'crit'):
+            sevs.append(d['severity'])
     ctr_problem = any(c['state'] != 'running' or c['health'] == 'unhealthy' for c in ctrs)
     overall = ('crit' if ('crit' in sevs or ctr_problem) else
                'warn' if 'warn' in sevs else 'ok')
@@ -1575,6 +1742,7 @@ def _collect() -> dict:
         'nas_disk':      {**nas, 'severity': _sev(nas['pct'], 'nas_disk')},
         'backups_disk':  {**backups, 'severity': _sev(backups['pct'], 'backups_disk')},
         'external_disk': {**external, 'severity': _sev(external['pct'], 'external_disk')},
+        'drive_inventory': drive_inventory,
         'containers':    ctrs,
         'container_stats': ctr_stats,
         'thresholds':    THRESHOLDS,
