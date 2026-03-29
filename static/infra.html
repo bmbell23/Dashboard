@@ -295,14 +295,26 @@ function renderMetrics(snap) {
           val: fmtMB(snap.swap.used_mb),
           sub: 'of ' + fmtMB(snap.swap.total_mb),
           pct: snap.swap.pct, sev: snap.swap.severity },
-        { key: 'docker_disk', label: 'Docker Disk',
+                { key: 'nas_disk',    label: 'Boston (source)',
+                    val: snap.nas_disk.used_gb + ' GB',
+                    sub: 'of ' + snap.nas_disk.total_gb + ' GB',
+                    pct: snap.nas_disk.pct, sev: snap.nas_disk.severity },
+                { key: 'backups_disk', label: 'Backups (internal)',
+                    val: (snap.backups_disk?.used_gb ?? 0) + ' GB',
+                    sub: 'of ' + (snap.backups_disk?.total_gb ?? 0) + ' GB',
+                    pct: snap.backups_disk?.pct ?? 0, sev: snap.backups_disk?.severity ?? 'ok' },
+                { key: 'external_disk', label: 'External (media)',
+                    val: (snap.external_disk?.used_gb ?? 0) + ' GB',
+                    sub: 'of ' + (snap.external_disk?.total_gb ?? 0) + ' GB',
+                    pct: snap.external_disk?.pct ?? 0, sev: snap.external_disk?.severity ?? 'ok' },
+                { key: 'ssd250_disk', label: 'SSD250 (VM store)',
+                    val: (snap.ssd250_disk?.used_gb ?? 0) + ' GB',
+                    sub: 'of ' + (snap.ssd250_disk?.total_gb ?? 0) + ' GB',
+                    pct: snap.ssd250_disk?.pct ?? 0, sev: snap.ssd250_disk?.severity ?? 'ok' },
+                { key: 'docker_disk', label: 'Docker disk view',
           val: snap.docker_disk.used_gb + ' GB',
           sub: 'of ' + snap.docker_disk.total_gb + ' GB',
           pct: snap.docker_disk.pct, sev: snap.docker_disk.severity },
-        { key: 'nas_disk',    label: 'NAS (boston)',
-          val: snap.nas_disk.used_gb + ' GB',
-          sub: 'of ' + snap.nas_disk.total_gb + ' GB',
-          pct: snap.nas_disk.pct, sev: snap.nas_disk.severity },
     ];
     const t = snap.thresholds;
     $('metrics-grid').innerHTML = metrics.map(m => {
@@ -327,8 +339,17 @@ function renderProblems(snap) {
     const problems = [];
 
     // Resource issues
-    const metricLabels = { cpu: 'CPU', ram: 'RAM', swap: 'Swap', docker_disk: 'Docker disk', nas_disk: 'NAS disk' };
-    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nas_disk','nas_disk']].forEach(([key, sk]) => {
+    const metricLabels = {
+        cpu: 'CPU',
+        ram: 'RAM',
+        swap: 'Swap',
+        docker_disk: 'Docker disk',
+        nas_disk: 'Boston source disk',
+        backups_disk: 'Backups disk',
+        external_disk: 'External disk',
+        ssd250_disk: 'SSD250 disk',
+    };
+    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nas_disk','nas_disk'],['backups_disk','backups_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk']].forEach(([key, sk]) => {
         const m = snap[key];
         if (m && m.severity && m.severity !== 'ok') {
             problems.push(`${metricLabels[sk]} at ${m.pct}% — ${m.severity === 'crit' ? 'critical' : 'elevated'}`);
@@ -470,7 +491,7 @@ function renderCronTable(entries) {
         const nextRun = e.next_run ? new Date(e.next_run).toLocaleString() : 'n/a';
         const statusText = e.script_exists === false
             ? 'WARNING: Script missing'
-            : (e.last_seen ? 'OK' : 'WARNING: No logs found');
+            : (e.status_note ? e.status_note : (e.last_seen ? 'OK' : 'WARNING: No logs found'));
         const effectiveSev = (e.last_seen || e.script_exists === false) ? (e.severity || 'unknown') : 'warn';
         const source = e.source ? `<div class="soft">source: ${e.source}</div>` : '';
         return `<tr>

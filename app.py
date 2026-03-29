@@ -102,7 +102,10 @@ THRESHOLDS = {
     'ram':         {'warn': 85, 'crit': 95},
     'swap':        {'warn': 50, 'crit': 75},
     'docker_disk': {'warn': 75, 'crit': 85},
+    'ssd250_disk': {'warn': 85, 'crit': 93},
     'nas_disk':    {'warn': 85, 'crit': 93},
+    'backups_disk': {'warn': 85, 'crit': 93},
+    'external_disk': {'warn': 85, 'crit': 93},
 }
 
 PROJECTS_ROOT = '/home/brandon/projects'
@@ -183,6 +186,67 @@ def _read_disk(path: str) -> dict:
         return {'used_gb': round(used / 1e9, 1), 'total_gb': round(total / 1e9, 1), 'pct': pct}
     except Exception:
         return {'used_gb': 0, 'total_gb': 0, 'pct': 0}
+
+
+def _read_proxmox_disks_remote() -> dict[str, dict]:
+    """Read selected Proxmox mount usage over SSH as a fallback for host-mismatch setups."""
+    host = os.environ.get('PROXMOX_SSH_HOST', '').strip()
+    user = os.environ.get('PROXMOX_SSH_USER', 'brandon').strip()
+    password = os.environ.get('PROXMOX_SSH_PASSWORD', '').strip()
+    if password.startswith(('"', "'")) and password.endswith(('"', "'")) and len(password) >= 2:
+        password = password[1:-1]
+    password = password.replace('\\#', '#')
+    if not host:
+        return {}
+
+    use_password = bool(password and shutil.which('sshpass'))
+    ssh_base = [
+        'ssh',
+        '-o', f'BatchMode={"no" if use_password else "yes"}',
+        '-o', 'PreferredAuthentications=password,publickey',
+        '-o', 'ConnectTimeout=6',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        f'{user}@{host}',
+    ]
+    if use_password:
+        ssh_base = ['sshpass', '-p', password] + ssh_base
+
+    code, out, _ = _run_cmd(
+        ssh_base + [
+            "df -B1 --output=target,size,used,pcent /mnt/backups /mnt/external /mnt/ssd250 2>/dev/null | tail -n +2"
+        ],
+        timeout=12,
+    )
+    if code != 0 or not out:
+        return {}
+
+    mapping = {
+        '/mnt/backups': 'backups_disk',
+        '/mnt/external': 'external_disk',
+        '/mnt/ssd250': 'ssd250_disk',
+    }
+    result: dict[str, dict] = {}
+    for ln in out.splitlines():
+        parts = ln.split()
+        if len(parts) < 4:
+            continue
+        target, size_b, used_b, pct_s = parts[:4]
+        key = mapping.get(target)
+        if not key:
+            continue
+        try:
+            size = int(size_b)
+            used = int(used_b)
+            pct = int(str(pct_s).rstrip('%'))
+        except Exception:
+            continue
+        result[key] = {
+            'used_gb': round(used / 1e9, 1),
+            'total_gb': round(size / 1e9, 1),
+            'pct': pct,
+        }
+    return result
 
 
 def _read_containers() -> list:
@@ -460,6 +524,47 @@ def _find_last_cron_run(command: str) -> dict | None:
     return None
 
 
+def _read_backup_log_status_local(script_name: str) -> dict | None:
+    """Best-effort status from local backup log files."""
+    patterns = {
+        'backup-script.sh': os.path.expanduser('~/.local/state/backups/backup-20*.log'),
+        'backup-external.sh': os.path.expanduser('~/.local/state/backups/backup-external-*.log'),
+    }
+    pattern = patterns.get(script_name)
+    if not pattern:
+        return None
+
+    files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    if not files:
+        return None
+
+    latest = files[0]
+    try:
+        with open(latest, 'r', errors='replace') as f:
+            tail = f.readlines()[-120:]
+        content = ''.join(tail)
+        completed = 'completed at' in content.lower()
+        skipped = 'skipping external backup' in content.lower()
+        failed = 'FAILED' in content
+        mtime = datetime.fromtimestamp(os.path.getmtime(latest)).isoformat(timespec='seconds')
+        if failed:
+            severity, note = 'crit', 'Backup log reports one or more failed sections.'
+        elif skipped:
+            severity, note = 'warn', 'External backup was skipped because drive was not mounted.'
+        elif completed:
+            severity, note = 'ok', 'Backup completed successfully.'
+        else:
+            severity, note = 'warn', 'Backup log found but completion status is unclear.'
+        return {
+            'time': mtime,
+            'log_path': latest,
+            'severity': severity,
+            'status_note': note,
+        }
+    except Exception:
+        return None
+
+
 def _cron_description(command: str) -> str:
     c = command.lower()
     if '>> /home/brandon/projects/docker/backup.log 2>&1' in c:
@@ -547,7 +652,12 @@ def _normalized_cron_entry(source: str, schedule: str, command: str) -> dict | N
     cmd_token = command.split()[0] if command else ''
     script_exists = bool(cmd_token and cmd_token.startswith('/') and os.path.exists(cmd_token))
     sev = 'ok' if (not cmd_token.startswith('/') or script_exists) else 'crit'
+    cmd_base = os.path.basename((command.strip().split()[0] if command.strip() else ''))
     last = _find_last_cron_run(command) or {}
+    if not last and cmd_base in ('backup-script.sh', 'backup-external.sh'):
+        last = _read_backup_log_status_local(cmd_base) or {}
+
+    status_note = last.get('status_note')
     if last.get('time') is None and sev != 'crit':
         sev = 'warn'
     return {
@@ -561,7 +671,59 @@ def _normalized_cron_entry(source: str, schedule: str, command: str) -> dict | N
         'last_seen': last.get('time'),
         'last_seen_raw': last.get('line'),
         'log_path': last.get('log_path'),
+        'status_note': status_note,
         'severity': sev,
+    }
+
+
+def _read_backup_log_status_remote(ssh_base: list[str], script_name: str) -> dict | None:
+    """Best-effort status from backup logs on the Proxmox host for brandon-run scripts."""
+    patterns = {
+        'backup-script.sh': 'backup-20*.log',
+        'backup-external.sh': 'backup-external-*.log',
+    }
+    pattern = patterns.get(script_name)
+    if not pattern:
+        return None
+
+    cmd = (
+        "LOG_DIR=\"${HOME}/.local/state/backups\"; "
+        f"LATEST=$(ls -1t \"$LOG_DIR\"/{pattern} 2>/dev/null | head -n 1); "
+        "if [ -z \"$LATEST\" ]; then exit 3; fi; "
+        "echo \"PATH:$LATEST\"; "
+        "date -r \"$LATEST\" --iso-8601=seconds | sed 's/^/MTIME:/' ; "
+        "tail -n 120 \"$LATEST\""
+    )
+    code, out, _ = _run_cmd(ssh_base + [cmd], timeout=12)
+    if code != 0 or not out:
+        return None
+
+    log_path = None
+    mtime = None
+    for ln in out.splitlines():
+        if ln.startswith('PATH:'):
+            log_path = ln.split(':', 1)[1].strip()
+        elif ln.startswith('MTIME:'):
+            mtime = ln.split(':', 1)[1].strip()
+
+    content = out
+    completed = 'completed at' in content.lower()
+    skipped = 'skipping external backup' in content.lower()
+    failed = 'FAILED' in content
+    if failed:
+        severity, note = 'crit', 'Backup log reports one or more failed sections.'
+    elif skipped:
+        severity, note = 'warn', 'External backup was skipped because drive was not mounted.'
+    elif completed:
+        severity, note = 'ok', 'Backup completed successfully.'
+    else:
+        severity, note = 'warn', 'Backup log found but completion status is unclear.'
+
+    return {
+        'time': mtime,
+        'log_path': log_path,
+        'severity': severity,
+        'status_note': note,
     }
 
 
@@ -994,7 +1156,7 @@ def _read_host_config() -> dict:
 def _read_proxmox_info() -> dict:
     """Best-effort Proxmox backup visibility via optional SSH target env vars."""
     host = os.environ.get('PROXMOX_SSH_HOST', '').strip()
-    user = os.environ.get('PROXMOX_SSH_USER', 'root').strip()
+    user = os.environ.get('PROXMOX_SSH_USER', 'brandon').strip()
     password = os.environ.get('PROXMOX_SSH_PASSWORD', '').strip()
     # Normalize common dotenv encodings.
     if password.startswith(('"', "'")) and password.endswith(('"', "'")) and len(password) >= 2:
@@ -1051,9 +1213,15 @@ def _read_proxmox_info() -> dict:
                     'target': p[5],
                 })
 
-    # Proxmox root crontab
+    # Proxmox user crontab (defaults to brandon user)
     c_code, c_out, _ = _run_cmd(ssh_base + ["crontab -l 2>/dev/null | sed '/^#/d;/^$/d' | head -50"], timeout=10)
     cron_lines = [ln for ln in c_out.splitlines() if ln.strip()] if c_code == 0 and c_out else []
+
+    backup_logs: dict[str, dict] = {}
+    for script_name in ('backup-script.sh', 'backup-external.sh'):
+        status = _read_backup_log_status_remote(ssh_base, script_name)
+        if status:
+            backup_logs[script_name] = status
 
     sev = 'ok' if backups else 'warn'
     return {
@@ -1063,6 +1231,7 @@ def _read_proxmox_info() -> dict:
         'backups': backups,
         'mounts': mounts,
         'cron': cron_lines,
+        'backup_logs': backup_logs,
     }
 
 
@@ -1084,6 +1253,23 @@ def _collect_extended() -> dict:
         entry = _normalized_cron_entry('proxmox_root_crontab', schedule, command)
         if entry:
             automation['cron'].append(entry)
+
+    # For backup scripts that now log directly under brandon, prefer remote log status.
+    backup_logs = proxmox.get('backup_logs', {}) or {}
+    for entry in automation.get('cron', []):
+        command = entry.get('command', '')
+        cmd_base = os.path.basename((command.strip().split()[0] if command.strip() else ''))
+        remote = backup_logs.get(cmd_base)
+        if not remote:
+            continue
+        if remote.get('time'):
+            entry['last_seen'] = remote['time']
+        if remote.get('log_path'):
+            entry['log_path'] = remote['log_path']
+        if remote.get('status_note'):
+            entry['status_note'] = remote['status_note']
+        if remote.get('severity') in ('ok', 'warn', 'crit') and entry.get('severity') != 'crit':
+            entry['severity'] = remote['severity']
 
     if any(e.get('severity') == 'crit' for e in automation.get('cron', []) + automation.get('timers', [])):
         automation['severity'] = 'crit'
@@ -1129,15 +1315,32 @@ def _collect() -> dict:
     cpu        = _read_cpu()
     mem        = _read_mem()
     dsk        = _read_disk('/mnt/docker')
+    ssd250     = _read_disk('/mnt/ssd250')
     nas        = _read_disk('/mnt/boston')
+    backups    = _read_disk('/mnt/backups')
+    external   = _read_disk('/mnt/external')
     ctrs       = _read_containers()
     ctr_stats  = _read_container_stats()   # per-container CPU/RAM for pie charts
+
+    # Many hosts map Docker data onto /mnt/ssd250; use it when /mnt/docker is unavailable.
+    docker_effective = dsk if dsk.get('total_gb', 0) > 0 else ssd250
+
+    # If dashboard is running on a different host namespace, pull selected disk usage from Proxmox.
+    remote_disks = _read_proxmox_disks_remote()
+    if remote_disks.get('ssd250_disk'):
+        ssd250 = remote_disks['ssd250_disk']
+    if remote_disks.get('backups_disk'):
+        backups = remote_disks['backups_disk']
+    if remote_disks.get('external_disk'):
+        external = remote_disks['external_disk']
 
     ram_pct  = int(mem['ram_used_mb']  / mem['ram_total_mb']  * 100) if mem['ram_total_mb']  else 0
     swap_pct = int(mem['swap_used_mb'] / mem['swap_total_mb'] * 100) if mem['swap_total_mb'] else 0
 
     sevs = [_sev(cpu, 'cpu'), _sev(ram_pct, 'ram'), _sev(swap_pct, 'swap'),
-            _sev(dsk['pct'], 'docker_disk'), _sev(nas['pct'], 'nas_disk')]
+            _sev(docker_effective['pct'], 'docker_disk'), _sev(ssd250['pct'], 'ssd250_disk'),
+            _sev(nas['pct'], 'nas_disk'), _sev(backups['pct'], 'backups_disk'),
+            _sev(external['pct'], 'external_disk')]
     ctr_problem = any(c['state'] != 'running' or c['health'] == 'unhealthy' for c in ctrs)
     overall = ('crit' if ('crit' in sevs or ctr_problem) else
                'warn' if 'warn' in sevs else 'ok')
@@ -1150,8 +1353,11 @@ def _collect() -> dict:
                           'pct': ram_pct, 'severity': _sev(ram_pct, 'ram')},
         'swap':          {'used_mb': mem['swap_used_mb'], 'total_mb': mem['swap_total_mb'],
                           'pct': swap_pct, 'severity': _sev(swap_pct, 'swap')},
-        'docker_disk':   {**dsk, 'severity': _sev(dsk['pct'], 'docker_disk')},
+        'docker_disk':   {**docker_effective, 'severity': _sev(docker_effective['pct'], 'docker_disk')},
+        'ssd250_disk':   {**ssd250, 'severity': _sev(ssd250['pct'], 'ssd250_disk')},
         'nas_disk':      {**nas, 'severity': _sev(nas['pct'], 'nas_disk')},
+        'backups_disk':  {**backups, 'severity': _sev(backups['pct'], 'backups_disk')},
+        'external_disk': {**external, 'severity': _sev(external['pct'], 'external_disk')},
         'containers':    ctrs,
         'container_stats': ctr_stats,
         'thresholds':    THRESHOLDS,

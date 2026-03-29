@@ -14,6 +14,9 @@ services:
       # Read-only disk mounts so the health page can report real usage
       - /mnt/docker:/mnt/docker:ro
       - /mnt/boston:/mnt/boston:ro
+      - /mnt/backups:/mnt/backups:ro
+      - /mnt/external:/mnt/external:ro
+      - /mnt/ssd250:/mnt/ssd250:ro
       # Host config and automation visibility (read-only)
       - /etc/fstab:/host_etc/fstab:ro
       - /etc/crontab:/host_etc/crontab:ro
@@ -30,7 +33,7 @@ services:
       - AUDIOBOOKSHELF_API_TOKEN=${AUDIOBOOKSHELF_API_TOKEN:-}
       - STASH_API_KEY=${STASH_API_KEY:-}
       - PROXMOX_SSH_HOST=${PROXMOX_SSH_HOST:-10.0.0.159}
-      - PROXMOX_SSH_USER=${PROXMOX_SSH_USER:-root}
+      - PROXMOX_SSH_USER=${PROXMOX_SSH_USER:-brandon}
       - PROXMOX_SSH_PASSWORD=${PROXMOX_SSH_PASSWORD:-}
 
     # Resource limits
