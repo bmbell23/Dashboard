@@ -134,6 +134,7 @@
         .backup-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
         .backup-list { margin: 0; padding-left: 1.1rem; }
         .backup-list li { margin: .16rem 0; }
+        .backup-path { display: inline-block; padding: .2rem .5rem; background: rgba(255,107,53,.08); border: 1px solid rgba(255,107,53,.2); border-radius: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; }
         .sync-chip { font-size: .64rem; text-transform: uppercase; letter-spacing: .85px; padding: .14rem .42rem; border-radius: 999px; border: 1px solid var(--border); }
         .sync-chip.matched { color: var(--green); border-color: rgba(52,199,89,.35); background: rgba(52,199,89,.11); }
         .sync-chip.running { color: var(--yellow); border-color: rgba(255,159,10,.35); background: rgba(255,159,10,.11); }
@@ -562,11 +563,11 @@ function renderRepos(data) {
 function syncChip(state) {
     const s = state || 'unknown';
     const labels = {
-        matched: 'Source/Destination Match',
-        running: 'Running Now',
-        skipped: 'Skipped (Drive Offline)',
-        mismatch: 'Mismatch/Failed',
-        unknown: 'Unknown',
+        matched: 'Synced',
+        running: 'Active',
+        skipped: 'Offline',
+        mismatch: 'Failed',
+        unknown: '—',
     };
     return `<span class="sync-chip ${s}">${labels[s] || labels.unknown}</span>`;
 }
@@ -582,7 +583,17 @@ function renderBackups(data) {
         tbody.innerHTML = jobs.map(j => {
             const lastRun = j.last_run ? new Date(j.last_run).toLocaleString() : 'No run found';
             const nextRun = j.next_run ? new Date(j.next_run).toLocaleString() : (j.schedule ? 'From schedule config' : 'n/a');
-            const includes = (j.includes || []).map(i => `<li>${i}</li>`).join('');
+            const includes = (j.includes || []).map(i => {
+                const parts = i.split('->');
+                if (parts.length === 2) {
+                    const dest = parts[1].trim();
+                    // Extract relative path like "media/audiobooks" or "documents"
+                    const match = dest.match(/^\/mnt\/[^/]+\/(.+)$/);
+                    const displayPath = match ? match[1] : dest.split('/').filter(x => x).pop() || 'backup';
+                    return `<li><span class="backup-path">${displayPath}</span></li>`;
+                }
+                return `<li>${i}</li>`;
+            }).join('');
             const progress = (j.running && j.progress_pct != null)
                 ? `<div class="progress-track"><div class="progress-fill" style="width:${Math.min(j.progress_pct, 100)}%"></div></div><div class="soft">${j.progress_pct}% complete (live estimate)</div>`
                 : '';
@@ -597,7 +608,7 @@ function renderBackups(data) {
                 <td>${lastRun}</td>
                 <td>${nextRun}</td>
                 <td>${syncChip(j.sync_state)}${progress}</td>
-                <td>${sevTag(j.severity)} <span class="soft" style="margin-left:.4rem">${j.status_note || ''}</span>${logLine}</td>
+                <td><span class="soft">${j.status_note || ''}</span>${logLine}</td>
             </tr>`;
         }).join('');
     }

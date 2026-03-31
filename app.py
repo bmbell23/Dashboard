@@ -59,6 +59,7 @@ CONTAINERS = {
     'stash': {'name': 'stash', 'service': 'stash', 'compose_dir': 'stash'},
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
     'dictionary': {'name': 'dictionary-api', 'service': 'dictionary-api', 'compose_dir': 'dictionary'},
+    'vaultwarden': {'name': 'vaultwarden', 'service': 'vaultwarden', 'compose_dir': 'vaultwarden'},
 }
 
 # =============================================================================
@@ -93,6 +94,7 @@ MONITORED_CONTAINERS = [
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
     {'name': 'dictionary-api', 'label': 'Dictionary',     'category': 'Tools'},
+    {'name': 'vaultwarden',    'label': 'Vaultwarden',    'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
@@ -1239,7 +1241,7 @@ def _read_backup_overview(automation: dict) -> dict:
     jobs.append(config)
 
     coverage = [
-        'Internal: docker-backups, documents, audiobooks, books, games, audiobookshelf, music, other',
+        'Internal: docker-backups (includes Vaultwarden, Trilium, Stash), documents, audiobooks, books, games, audiobookshelf, music, other',
         'External: pictures, videos',
         'Proxmox config: /etc/pve, /etc/network, /etc/fstab, /etc/udev, /home/brandon',
         'Proxmox VM archives (vzdump) — managed by Proxmox scheduler (root)',

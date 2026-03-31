@@ -8,6 +8,9 @@ This service provides:
 - Health and infrastructure telemetry APIs
 - Library scan actions for Jellyfin and Audiobookshelf
 
+Planning docs:
+- See TAILSCALE_ACCESS_PLAN.md for the container-by-container HTTPS 443 access migration plan.
+
 ## Repository Location
 
 Canonical path on host:
