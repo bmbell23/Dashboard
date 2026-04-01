@@ -1241,7 +1241,7 @@ def _read_backup_overview(automation: dict) -> dict:
     jobs.append(config)
 
     coverage = [
-        'Internal: docker-backups (includes Vaultwarden, Trilium, Stash), documents, audiobooks, books, games, audiobookshelf, music, other',
+        'Internal: docker-backups, documents, audiobooks, books, games, audiobookshelf, music, other',
         'External: pictures, videos',
         'Proxmox config: /etc/pve, /etc/network, /etc/fstab, /etc/udev, /home/brandon',
         'Proxmox VM archives (vzdump) — managed by Proxmox scheduler (root)',
