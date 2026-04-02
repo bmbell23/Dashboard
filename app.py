@@ -28,6 +28,10 @@ CORS(app)  # Enable CORS for frontend requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+JENKINS_URL = os.environ.get('JENKINS_URL', 'http://100.69.184.113:8880').rstrip('/')
+JENKINS_API_USER = os.environ.get('JENKINS_API_USER', '').strip()
+JENKINS_API_TOKEN = os.environ.get('JENKINS_API_TOKEN', '').strip()
+
 # Container mappings: service_id -> {container_name, compose_dir, service (compose service name)}
 CONTAINERS = {
     # Media
@@ -60,6 +64,9 @@ CONTAINERS = {
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
     'dictionary': {'name': 'dictionary-api', 'service': 'dictionary-api', 'compose_dir': 'dictionary'},
     'vaultwarden': {'name': 'vaultwarden', 'service': 'vaultwarden', 'compose_dir': 'vaultwarden'},
+
+    # Infrastructure
+    'jenkins': {'name': 'jenkins', 'service': 'jenkins', 'compose_dir': 'jenkins'},
 }
 
 # =============================================================================
@@ -97,6 +104,7 @@ MONITORED_CONTAINERS = [
     {'name': 'vaultwarden',    'label': 'Vaultwarden',    'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
+    {'name': 'jenkins',       'label': 'Jenkins',       'category': 'Infrastructure'},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
     {'name': 'dashboard',      'label': 'Dashboard',      'category': 'Infrastructure'},
 ]
@@ -184,7 +192,7 @@ DRIVE_LAYOUT = [
 PROJECTS_ROOT = '/home/brandon/projects'
 
 AUTOMATION_CONTAINERS = [
-    'dashboard', 'libby-web', 'mullvad-vpn'
+    'dashboard', 'libby-web', 'mullvad-vpn', 'jenkins'
 ]
 
 BACKUP_JOB_DEFS = [
@@ -2390,6 +2398,77 @@ def infra_extended():
     except Exception as ex:
         logger.warning(f'Live repo refresh failed: {ex}')
     return jsonify(snap)
+
+
+@app.route('/api/jenkins/status')
+def jenkins_status():
+    """Return Jenkins connectivity and lightweight queue/job status."""
+    auth = None
+    if JENKINS_API_USER and JENKINS_API_TOKEN:
+        auth = (JENKINS_API_USER, JENKINS_API_TOKEN)
+
+    try:
+        if auth:
+            resp = requests.get(
+                f'{JENKINS_URL}/api/json',
+                params={'tree': 'jobs[name],overallLoad[busyExecutors,totalExecutors,queueLength]'},
+                auth=auth,
+                timeout=5,
+            )
+            if resp.status_code == 401:
+                return jsonify({
+                    'status': 'error',
+                    'overall': 'warn',
+                    'message': 'Jenkins API authentication failed',
+                }), 200
+            resp.raise_for_status()
+
+            payload = resp.json() if resp.content else {}
+            overall_load = payload.get('overallLoad', {})
+            queue_length = int(overall_load.get('queueLength') or 0)
+            busy_executors = int(overall_load.get('busyExecutors') or 0)
+            total_executors = int(overall_load.get('totalExecutors') or 0)
+            jobs_count = len(payload.get('jobs') or [])
+
+            overall = 'warn' if queue_length > 0 else 'ok'
+            message = f'{jobs_count} jobs, queue {queue_length}, executors {busy_executors}/{total_executors}'
+            return jsonify({
+                'status': 'ok',
+                'overall': overall,
+                'message': message,
+                'jobs_count': jobs_count,
+                'queue_length': queue_length,
+                'busy_executors': busy_executors,
+                'total_executors': total_executors,
+                'api_configured': True,
+            })
+
+        # If no API token is configured yet, do a reachability check only.
+        ping = requests.get(f'{JENKINS_URL}/login', timeout=5, allow_redirects=True)
+        ping.raise_for_status()
+        return jsonify({
+            'status': 'ok',
+            'overall': 'warn',
+            'message': 'Jenkins reachable, API token not configured',
+            'jobs_count': None,
+            'queue_length': None,
+            'busy_executors': None,
+            'total_executors': None,
+            'api_configured': False,
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'status': 'timeout',
+            'overall': 'warn',
+            'message': 'Jenkins status request timed out',
+        }), 200
+    except Exception as ex:
+        logger.warning(f'Jenkins status probe failed: {ex}')
+        return jsonify({
+            'status': 'error',
+            'overall': 'crit',
+            'message': f'Jenkins unavailable: {ex}',
+        }), 200
 
 @app.route('/api/infra/history')
 def infra_history():

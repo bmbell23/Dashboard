@@ -279,6 +279,10 @@
             <h4>Host Config &amp; Proxmox</h4>
             <ul id="host-list" class="ops-list"></ul>
         </div>
+        <div class="ops-card">
+            <h4>Jenkins CI/CD</h4>
+            <ul id="jenkins-list" class="ops-list"></ul>
+        </div>
     </div>
 </div>
 
@@ -731,6 +735,50 @@ function renderHostAndProxmox(hostCfg, proxmox) {
     el.innerHTML = html;
 }
 
+function renderJenkins(data) {
+    const el = $('jenkins-list');
+    if (!data || !data.status) {
+        el.innerHTML = '<li class="empty-note">Jenkins status unavailable.</li>';
+        return;
+    }
+
+    const rows = [
+        {
+            name: 'Endpoint',
+            val: data.status === 'ok' ? 'Reachable' : (data.status || 'unknown'),
+            sev: data.overall || 'warn'
+        },
+        {
+            name: 'API Mode',
+            val: data.api_configured ? 'Authenticated' : 'Reachability only',
+            sev: data.api_configured ? 'ok' : 'warn'
+        },
+        {
+            name: 'Summary',
+            val: data.message || 'No details',
+            sev: data.overall || 'warn'
+        }
+    ];
+
+    if (data.jobs_count != null) {
+        rows.push({ name: 'Jobs', val: `${data.jobs_count}`, sev: 'ok' });
+    }
+    if (data.queue_length != null) {
+        rows.push({ name: 'Queue', val: `${data.queue_length}`, sev: data.queue_length > 0 ? 'warn' : 'ok' });
+    }
+    if (data.total_executors != null && data.busy_executors != null) {
+        rows.push({
+            name: 'Executors',
+            val: `${data.busy_executors}/${data.total_executors} busy`,
+            sev: 'ok'
+        });
+    }
+
+    let html = rows.map(r => `<li class="ops-row"><div class="ops-left"><span class="name">${r.name}</span><span class="soft">${r.val}</span></div><div>${sevTag(r.sev)}</div></li>`).join('');
+    html += '<li class="soft mono">Dashboard endpoint: /api/jenkins/status</li>';
+    el.innerHTML = html;
+}
+
 function startClock() {
     const el = $('nav-clock');
     const tick = () => {
@@ -751,6 +799,11 @@ function refreshExtended() {
             renderNetwork(ext.network || {});
             renderDockerSummary(ext.docker || {});
             renderHostAndProxmox(ext.host_config || {}, ext.proxmox || {});
+
+            fetch(`/api/jenkins/status?_=${Date.now()}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(js => renderJenkins(js))
+                .catch(() => renderJenkins({ status: 'error', overall: 'crit', message: 'Jenkins status fetch failed' }));
         })
         .catch(e => console.warn('Extended status fetch failed', e));
 }
