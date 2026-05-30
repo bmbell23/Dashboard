@@ -28,6 +28,34 @@ CORS(app)  # Enable CORS for frontend requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ── Download paths config ──────────────────────────────────────────────────────
+_PATHS_FILE = '/home/brandon/projects/Dashboard/download_paths.json'
+_PATHS_DEFAULT = {
+    'ytdlp': {
+        'adult_video': '/mnt/boston/media/other/Videos/Full',
+        'adult_short': '/mnt/boston/media/other/Videos/Short',
+        'video':       '/mnt/boston/media/videos/social',
+        'music':       '/mnt/boston/media/music',
+        'kids_video':  '/mnt/boston/media/kid-media/Videos',
+        'kids_audio':  '/mnt/boston/media/kid-media/Podcasts',
+    },
+    'gallery': {
+        'adult':   '/mnt/boston/media/other/Pictures',
+        'library': '/mnt/boston/media/pictures/library/images',
+    }
+}
+
+def load_paths():
+    try:
+        with open(_PATHS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return _PATHS_DEFAULT
+
+def save_paths(data):
+    with open(_PATHS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
 JENKINS_URL = os.environ.get('JENKINS_URL', 'http://100.69.184.113:8880').rstrip('/')
 JENKINS_API_USER = os.environ.get('JENKINS_API_USER', '').strip()
 JENKINS_API_TOKEN = os.environ.get('JENKINS_API_TOKEN', '').strip()
@@ -45,6 +73,7 @@ CONTAINERS = {
     'jackett': {'name': 'jackett', 'service': 'jackett', 'compose_dir': 'jackett'},
     'ytdlp': {'name': 'yt-dlp-web', 'service': 'yt-dlp-web', 'compose_dir': 'youtube-downloader'},
     'deemix': {'name': 'deemix', 'service': 'deemix', 'compose_dir': 'deemix'},
+    'gallery-dl': {'name': 'gallery-dl', 'service': 'gallery-dl', 'compose_dir': 'gallery-dl'},
 
     # Forge Apps
     'lifeforge': {'name': 'lifeforge_app', 'service': 'lifeforge', 'compose_dir': '/home/brandon/projects/LifeForge'},
@@ -64,6 +93,7 @@ CONTAINERS = {
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
     'dictionary': {'name': 'dictionary-api', 'service': 'dictionary-api', 'compose_dir': 'dictionary'},
     'vaultwarden': {'name': 'vaultwarden', 'service': 'vaultwarden', 'compose_dir': 'vaultwarden'},
+    'pokevault': {'name': 'pokevault', 'service': 'web', 'compose_dir': '/home/brandon/projects/PokeVault'},
 
     # Infrastructure
     'jenkins': {'name': 'jenkins', 'service': 'jenkins', 'compose_dir': 'jenkins'},
@@ -98,10 +128,12 @@ MONITORED_CONTAINERS = [
     {'name': 'flaresolverr',   'label': 'FlareSolverr',   'category': 'Downloads'},
     {'name': 'yt-dlp-web',     'label': 'YT-DLP',         'category': 'Downloads'},
     {'name': 'deemix',         'label': 'Deemix',         'category': 'Downloads'},
+    {'name': 'gallery-dl',     'label': 'Gallery-DL',     'category': 'Downloads'},
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
     {'name': 'dictionary-api', 'label': 'Dictionary',     'category': 'Tools'},
     {'name': 'vaultwarden',    'label': 'Vaultwarden',    'category': 'Tools'},
+    {'name': 'pokevault',      'label': 'PokeVault',      'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
     {'name': 'jenkins',       'label': 'Jenkins',       'category': 'Infrastructure'},
@@ -186,6 +218,7 @@ DRIVE_LAYOUT = [
         'mountpoint': '/mnt/flash',
         'size_gb_hint': 14,
         'purpose': 'Temporary portable storage (ext4, label: flash-drive)',
+        'transient': True,
     },
 ]
 
@@ -449,7 +482,10 @@ def _read_drive_inventory_remote() -> list[dict]:
             source = 'df'
         else:
             mounted = False if mount else None
-            if dev:
+            if d.get('transient'):
+                sev = 'ok'
+                source = 'lsblk' if dev else 'hint'
+            elif dev:
                 sev = 'warn' if mount else 'ok'
                 source = 'lsblk'
             else:
@@ -498,7 +534,10 @@ def _read_containers() -> list:
                       'healthy'   if '(healthy)'   in raw else
                       'starting'  if '(starting)'  in raw else None)
         else:
-            state, health = 'stopped', None
+            if c.get('optional'):
+                state, health = 'idle', None
+            else:
+                state, health = 'stopped', None
         out.append({**c, 'state': state, 'health': health, 'raw_status': raw})
     return out
 
@@ -2004,36 +2043,34 @@ def recreate_container(service_id):
         logger.error(f"Error recreating {container_name}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+JELLYFIN_URL = os.environ.get('JELLYFIN_URL', 'http://100.123.154.40:8096')
+
+def _trigger_jellyfin_scan():
+    """Fire a Jellyfin library refresh (runs in a background thread)."""
+    api_key = os.environ.get('JELLYFIN_API_KEY', '')
+    if not api_key:
+        logger.warning("Jellyfin scan skipped: JELLYFIN_API_KEY not set")
+        return
+    try:
+        url = f'{JELLYFIN_URL}/Library/Refresh?api_key={api_key}'
+        response = requests.post(url, timeout=30)
+        if response.status_code in (200, 204):
+            logger.info("Jellyfin library scan triggered successfully")
+        else:
+            logger.error(f"Jellyfin scan returned unexpected status {response.status_code}")
+    except Exception as e:
+        logger.error(f"Jellyfin scan error: {e}")
+
 @app.route('/api/scan/jellyfin', methods=['POST'])
 def scan_jellyfin():
-    """Trigger a library scan on Jellyfin."""
-    try:
-        # Jellyfin API endpoint for library refresh
-        # Note: This requires an API key to be configured in Jellyfin
-        # Users should set the JELLYFIN_API_KEY environment variable
-        api_key = os.environ.get('JELLYFIN_API_KEY', '')
+    """Trigger a library scan on Jellyfin (fire-and-forget)."""
+    api_key = os.environ.get('JELLYFIN_API_KEY', '')
+    if not api_key:
+        return jsonify({'error': 'JELLYFIN_API_KEY environment variable not set'}), 500
 
-        if not api_key:
-            return jsonify({'error': 'JELLYFIN_API_KEY environment variable not set'}), 500
-
-        jellyfin_url = 'http://100.123.154.40:8096'
-        url = f'{jellyfin_url}/Library/Refresh?api_key={api_key}'
-
-        logger.info(f"Triggering Jellyfin library scan")
-        response = requests.post(url, timeout=10)
-
-        if response.status_code == 204 or response.status_code == 200:
-            logger.info("Successfully triggered Jellyfin library scan")
-            return jsonify({'success': True, 'message': 'Jellyfin library scan started'})
-        else:
-            logger.error(f"Failed to trigger Jellyfin scan: {response.status_code}")
-            return jsonify({'error': f'Jellyfin API returned status {response.status_code}'}), 500
-
-    except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request to Jellyfin timed out'}), 500
-    except Exception as e:
-        logger.error(f"Error triggering Jellyfin scan: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    threading.Thread(target=_trigger_jellyfin_scan, daemon=True).start()
+    logger.info("Jellyfin library scan dispatched")
+    return jsonify({'success': True, 'message': 'Jellyfin library scan started'})
 
 @app.route('/api/scan/audiobookshelf', methods=['POST'])
 def scan_audiobookshelf():
@@ -2089,55 +2126,115 @@ def scan_audiobookshelf():
 
 @app.route('/api/tag/stash', methods=['POST'])
 def tag_stash():
-    """Trigger auto-tagging on Stash via its GraphQL API."""
+    """Trigger StashDB identify + auto-tagging on Stash via its GraphQL API."""
+    graphql_url = 'http://localhost:9999/graphql'
+    headers = {'Content-Type': 'application/json'}
+
+    # Optionally include API key if configured
+    api_key = os.environ.get('STASH_API_KEY', '')
+    if api_key:
+        headers['ApiKey'] = api_key
+
+    stashdb_endpoint = os.environ.get('STASHDB_ENDPOINT', 'https://stashdb.org/graphql')
+
+    jobs = []
+
     try:
-        api_key = os.environ.get('STASH_API_KEY', '')
-
-        if not api_key:
-            return jsonify({'error': 'STASH_API_KEY environment variable not set'}), 500
-
-        stash_url = 'http://100.123.154.40:9999'
-        graphql_url = f'{stash_url}/graphql'
-
-        headers = {
-            'Content-Type': 'application/json',
-            'ApiKey': api_key,
+        # Step 1: Identify scenes via StashDB fingerprint matching
+        identify_query = """
+        mutation {
+            metadataIdentify(input: {
+                sources: [{ source: { stash_box_endpoint: "%s" } }],
+                options: { setCoverImage: true, setOrganized: false }
+            })
         }
+        """ % stashdb_endpoint
 
-        # Auto-tag all scenes against all performers, studios, and tags
-        # Using ["*"] signals Stash to match everything
-        query = """
-        mutation MetadataAutoTag {
-            metadataAutoTag(input: {performers: ["*"], studios: ["*"], tags: ["*"]})
+        logger.info("Triggering Stash StashDB identify")
+        response = requests.post(graphql_url, json={'query': identify_query}, headers=headers, timeout=10)
+        if response.status_code == 401:
+            return jsonify({'error': 'Authentication failed. Check STASH_API_KEY.'}), 500
+        if response.status_code == 200:
+            data = response.json()
+            if 'errors' not in data:
+                jobs.append(f"StashDB identify (job {data['data']['metadataIdentify']})")
+
+        # Step 2: Enrich performers with StashDB profiles (photos, bio, measurements, etc.)
+        performer_query = """
+        mutation {
+            stashBoxBatchPerformerTag(input: {
+                stash_box_endpoint: "%s",
+                refresh: false,
+                createParent: false
+            })
+        }
+        """ % stashdb_endpoint
+
+        logger.info("Triggering Stash performer tagging")
+        response = requests.post(graphql_url, json={'query': performer_query}, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if 'errors' not in data:
+                jobs.append(f"performer tag (job {data['data']['stashBoxBatchPerformerTag']})")
+
+        # Step 3: Auto-tag scenes by filename against performers/studios/tags already in DB
+        autotag_query = """
+        mutation {
+            metadataAutoTag(input: { performers: ["*"], studios: ["*"], tags: ["*"] })
         }
         """
 
         logger.info("Triggering Stash auto-tagging")
-        response = requests.post(
-            graphql_url,
-            json={'query': query},
-            headers=headers,
-            timeout=10
-        )
-
+        response = requests.post(graphql_url, json={'query': autotag_query}, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if 'errors' in data:
-                logger.error(f"Stash GraphQL errors: {data['errors']}")
-                return jsonify({'error': str(data['errors'])}), 500
-            logger.info("Successfully triggered Stash auto-tagging")
-            return jsonify({'success': True, 'message': 'Stash auto-tagging started'})
-        elif response.status_code == 401:
-            return jsonify({'error': 'Authentication failed. Check STASH_API_KEY.'}), 500
+            if 'errors' not in data:
+                jobs.append(f"auto-tag (job {data['data']['metadataAutoTag']})")
+
+        if jobs:
+            msg = 'Stash jobs started: ' + ', '.join(jobs)
+            logger.info(msg)
+            return jsonify({'success': True, 'message': msg})
         else:
-            logger.error(f"Failed to trigger Stash auto-tagging: {response.status_code}")
-            return jsonify({'error': f'Stash API returned status {response.status_code}'}), 500
+            return jsonify({'error': 'Failed to start Stash jobs'}), 500
 
     except requests.exceptions.Timeout:
         return jsonify({'error': 'Request to Stash timed out'}), 500
     except Exception as e:
-        logger.error(f"Error triggering Stash auto-tagging: {str(e)}")
+        logger.error(f"Error triggering Stash tagging: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/settings/paths', methods=['GET', 'POST'])
+def settings_paths():
+    if request.method == 'GET':
+        return jsonify(load_paths())
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    save_paths(data)
+    logger.info("Download paths updated")
+    return jsonify({'success': True})
+
+SITES_FILES = {
+    'ytdlp':   '/app/data/sites_ytdlp.json',
+    'gallery': '/app/data/sites_gallery.json',
+}
+
+@app.route('/api/sites/<page>', methods=['GET', 'POST'])
+def sites_api(page):
+    if page not in SITES_FILES:
+        return jsonify({'error': 'Unknown page'}), 400
+    fpath = SITES_FILES[page]
+    if request.method == 'GET':
+        if os.path.exists(fpath):
+            with open(fpath) as fp:
+                return jsonify(json.load(fp))
+        return jsonify([])
+    data = request.get_json(force=True)
+    os.makedirs('/app/data', exist_ok=True)
+    with open(fpath, 'w') as fp:
+        json.dump(data, fp, indent=2)
+    return jsonify({'ok': True})
 
 @app.route('/api/download/youtube', methods=['POST'])
 def download_youtube():
@@ -2169,6 +2266,7 @@ def download_youtube():
                 '--merge-output-format', 'mp4',
                 '--add-metadata',
                 '--no-part',
+                '--no-continue',
                 '--retries', '10',
                 '--fragment-retries', '10',
                 '--file-access-retries', '10',
@@ -2214,6 +2312,374 @@ def download_youtube():
         return jsonify({'error': 'Download timed out (max 5 minutes)'}), 500
     except Exception as e:
         logger.error(f"Error downloading YouTube video: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+STASH_VIDEOS_PATH = '/mnt/boston/media/other/Videos/Full'
+STASH_GRAPHQL_URL = 'http://localhost:9999/graphql'
+
+@app.route('/api/download/stash-video', methods=['POST'])
+def download_stash_video():
+    """Download a YouPorn (or other adult site) video to the Stash library, then trigger scan + identify."""
+    import re, threading
+
+    data = request.get_json()
+    if not data or 'url' not in data:
+        return jsonify({'error': 'URL is required'}), 400
+
+    url = data['url'].strip()
+    if not url:
+        return jsonify({'error': 'URL cannot be empty'}), 400
+
+    logger.info(f"Starting Stash video download for URL: {url}")
+
+    # Download via yt-dlp inside the yt-dlp-web container
+    # Filename: "{id} - {title}.mp4" for best Stash scraper compatibility
+    cmd = [
+        'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+        '--format', 'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best',
+        '--merge-output-format', 'mp4',
+        '--no-part',
+        '--no-continue',
+        '--retries', '10',
+        '--fragment-retries', '10',
+        '--output', '/stash-videos/%(id)s - %(title)s.%(ext)s',
+        url
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+        if result.returncode != 0:
+            logger.error(f"yt-dlp failed: {result.stderr}")
+            return jsonify({'error': f'Download failed: {result.stderr}'}), 500
+
+        logger.info(f"Download complete, triggering Stash scan + identify")
+
+        # Fire Stash scan + identify in background so we can return immediately
+        def trigger_stash():
+            stashdb = 'https://stashdb.org/graphql'
+            headers = {'Content-Type': 'application/json'}
+            # Scan the specific directory for the new file
+            scan_q = '{"query": "mutation { metadataScan(input: { paths: [\"%s\"], scanGeneratePhashes: true }) }"}' % STASH_VIDEOS_PATH
+            requests.post(STASH_GRAPHQL_URL, data=scan_q, headers=headers, timeout=10)
+            # Identify new scenes against StashDB
+            identify_q = '{"query": "mutation { metadataIdentify(input: { sources: [{ source: { stash_box_endpoint: \\"%s\\" } }], options: { setCoverImage: true } }) }"}' % stashdb
+            requests.post(STASH_GRAPHQL_URL, data=identify_q, headers=headers, timeout=10)
+
+        threading.Thread(target=trigger_stash, daemon=True).start()
+
+        return jsonify({'success': True, 'message': f'Downloaded to Stash library and triggered scan + identify'})
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Download timed out (max 10 minutes)'}), 500
+    except Exception as e:
+        logger.error(f"Error downloading stash video: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/download/ytdlp', methods=['POST'])
+def download_ytdlp():
+    """Download audio or video from any yt-dlp supported site.
+    Body: { url, format, adult, short, kids }
+
+    Routing (paths from download_paths.json):
+      audio + kids  → kids_audio  path
+      audio         → music       path
+      video + short + adult → adult_short + Stash scan
+      video + adult → adult_video + Stash scan
+      video + kids  → kids_video  path
+      video         → video       path
+    """
+    data = request.get_json()
+    if not data or 'url' not in data:
+        return jsonify({'error': 'URL is required'}), 400
+
+    url = data['url'].strip()
+    if not url:
+        return jsonify({'error': 'URL cannot be empty'}), 400
+
+    fmt      = data.get('format', 'video').lower()
+    is_adult = bool(data.get('adult', False))
+    is_short = bool(data.get('short', False))
+    is_kids  = bool(data.get('kids', False))
+
+    paths = load_paths()['ytdlp']
+    video_fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
+    stash_scan_path = None
+
+    # Use YouTube cookies if available (needed for age-restricted videos)
+    _yt_cookies_host = '/home/brandon/projects/docker/youtube-downloader/cookies.txt'
+    _yt_cookies_args = ['--cookies', '/cookies/youtube.txt'] if os.path.exists(_yt_cookies_host) else []
+
+    if fmt == 'audio':
+        dest_label = paths['kids_audio'] if is_kids else paths['music']
+        mount = '/kid-podcasts' if is_kids else '/music'
+        cmd = [
+            'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+            '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
+            '--embed-thumbnail', '--add-metadata',
+            '--no-part', '--no-continue', '--retries', '10',
+            *_yt_cookies_args,
+            '-o', f'{mount}/%(uploader)s/%(title)s.%(ext)s',
+            url
+        ]
+    elif is_adult and is_short:
+        dest_label = paths['adult_short']
+        stash_scan_path = '/data/Videos/Short'
+        cmd = [
+            'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+            '--format', video_fmt, '--merge-output-format', 'mp4',
+            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            *_yt_cookies_args,
+            '-o', '/stash-shorts/%(id)s - %(title)s.%(ext)s',
+            url
+        ]
+    elif is_adult:
+        dest_label = paths['adult_video']
+        stash_scan_path = '/data/Videos/Full'
+        cmd = [
+            'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+            '--format', video_fmt, '--merge-output-format', 'mp4',
+            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            *_yt_cookies_args,
+            '-o', '/stash-videos/%(id)s - %(title)s.%(ext)s',
+            url
+        ]
+    elif is_kids:
+        dest_label = paths['kids_video']
+        cmd = [
+            'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+            '--format', video_fmt, '--merge-output-format', 'mp4',
+            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            *_yt_cookies_args,
+            '-o', '/kid-videos/%(uploader)s/%(title)s.%(ext)s',
+            url
+        ]
+    else:
+        dest_label = paths['video']
+        cmd = [
+            'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+            '--format', video_fmt, '--merge-output-format', 'mp4',
+            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            *_yt_cookies_args,
+            '-o', '/media-videos/social/%(title)s.%(ext)s',
+            url
+        ]
+
+    logger.info(f"yt-dlp: fmt={fmt} adult={is_adult} short={is_short} kids={is_kids} url={url}")
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if result.returncode == 0:
+            if stash_scan_path:
+                def _stash_scan(path=stash_scan_path):
+                    import time, requests as _req
+                    time.sleep(2)
+                    try:
+                        _req.post(STASH_GRAPHQL_URL,
+                            json={'query': f'mutation {{ metadataScan(input: {{ paths: ["{path}"] }}) }}'},
+                            timeout=10)
+                        _req.post(STASH_GRAPHQL_URL,
+                            json={'query': 'mutation { metadataIdentify(input: { sources: [{ source: { stash_box_endpoint: "https://stashdb.org/graphql" } }], options: { setCoverImage: true } }) }'},
+                            timeout=10)
+                    except Exception as ex:
+                        logger.warning(f"Stash scan/identify trigger failed: {ex}")
+                threading.Thread(target=_stash_scan, daemon=True).start()
+            return jsonify({'success': True, 'message': f'Download complete — saved to {dest_label}'})
+        else:
+            err = (result.stderr or result.stdout or 'Unknown error').strip()
+            logger.error(f"yt-dlp failed: {err}")
+            return jsonify({'error': f'Download failed: {err}'}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Download timed out (max 10 minutes)'}), 500
+    except Exception as e:
+        logger.error(f"yt-dlp download error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# ── gallery-dl → Stash metadata helpers ──────────────────────────────────────
+
+def _gdl_fetch_metadata(url):
+    """Fetch gallery-dl metadata for a URL without downloading any files."""
+    try:
+        r = subprocess.run(
+            ['docker', 'exec', 'gallery-dl', 'gallery-dl', '--dump-json', url],
+            capture_output=True, text=True, timeout=30
+        )
+        items = json.loads(r.stdout)
+        for item in items:
+            if isinstance(item, list) and len(item) >= 2 and isinstance(item[1], dict):
+                return item[1]
+    except Exception as e:
+        logger.warning(f"gallery-dl metadata fetch failed: {e}")
+    return {}
+
+def _stash_gql(headers, query, variables=None):
+    payload = {'query': query}
+    if variables:
+        payload['variables'] = variables
+    r = requests.post('http://localhost:9999/graphql', json=payload, headers=headers, timeout=15)
+    r.raise_for_status()
+    return r.json().get('data', {})
+
+def _stash_get_or_create_tag(headers, name):
+    name_esc = name.replace('"', '\\"')
+    data = _stash_gql(headers, f'{{ findTags(tag_filter: {{ name: {{ value: "{name_esc}", modifier: EQUALS }} }}) {{ tags {{ id }} }} }}')
+    tags = data.get('findTags', {}).get('tags', [])
+    if tags:
+        return tags[0]['id']
+    data = _stash_gql(headers, f'mutation {{ tagCreate(input: {{ name: "{name_esc}" }}) {{ id }} }}')
+    return data.get('tagCreate', {}).get('id')
+
+def _stash_get_or_create_performer(headers, name):
+    name_esc = name.replace('"', '\\"')
+    data = _stash_gql(headers, f'{{ findPerformers(filter: {{ q: "{name_esc}" }}) {{ performers {{ id name }} }} }}')
+    for p in data.get('findPerformers', {}).get('performers', []):
+        if p['name'].lower() == name.lower():
+            return p['id']
+    data = _stash_gql(headers, f'mutation {{ performerCreate(input: {{ name: "{name_esc}" }}) {{ id }} }}')
+    return data.get('performerCreate', {}).get('id')
+
+def _apply_stash_gallery_metadata(source_url, meta):
+    """Scan → wait → apply gallery-dl metadata to matching Stash gallery/galleries."""
+    api_key = os.environ.get('STASH_API_KEY', '')
+    headers = {'Content-Type': 'application/json'}
+    if api_key:
+        headers['ApiKey'] = api_key
+
+    try:
+        # Trigger scan of Pictures directory
+        _stash_gql(headers, 'mutation { metadataScan(input: { paths: ["/data/Pictures"] }) }')
+        logger.info("Triggered Stash scan for Pictures")
+    except Exception as e:
+        logger.warning(f"Stash scan trigger failed: {e}")
+
+    # Wait for scan to complete (poll job queue, up to 3 min)
+    for _ in range(18):
+        time.sleep(10)
+        try:
+            data = _stash_gql(headers, '{ jobQueue { id status description } }')
+            active = [j for j in data.get('jobQueue', [])
+                      if j.get('status') in ('READY', 'RUNNING') and 'scan' in j.get('description','').lower()]
+            if not active:
+                break
+        except Exception:
+            break
+
+    try:
+        tag_names  = [str(t) for t in meta.get('tags', [])]
+        creator    = (meta.get('username') or (meta.get('user_profile') or {}).get('name') or '').strip()
+        title      = (meta.get('title') or '').strip()
+        date_str   = (meta.get('published') or meta.get('date') or '')
+        date_str   = str(date_str)[:10]  # YYYY-MM-DD
+        user_id    = str(meta.get('user', ''))
+        service    = str(meta.get('service') or meta.get('subcategory') or meta.get('category') or '')
+        category   = str(meta.get('category') or 'kemono')
+
+        # Build the expected Stash path so we can filter precisely
+        # gallery-dl saves to: /pictures/{category}/{service}/{user_id}/
+        # Stash sees:           /data/Pictures/{category}/{service}/{user_id}/
+        stash_path_fragment = '/'.join(filter(None, ['data', 'Pictures', category, service, user_id]))
+
+        # Create/find tags
+        tag_ids = []
+        for t in tag_names:
+            tid = _stash_get_or_create_tag(headers, t)
+            if tid:
+                tag_ids.append(tid)
+
+        # Create/find performer
+        performer_id = _stash_get_or_create_performer(headers, creator) if creator else None
+
+        # Find gallery in Stash by path fragment
+        frag_esc = stash_path_fragment.replace('"', '\\"')
+        data = _stash_gql(headers, f'''{{
+            findGalleries(filter: {{ q: "{frag_esc}" }}) {{
+                galleries {{ id path title }}
+            }}
+        }}''')
+        galleries = data.get('findGalleries', {}).get('galleries', [])
+
+        if not galleries:
+            # Fallback: search just by user_id
+            uid_esc = user_id.replace('"', '\\"')
+            data = _stash_gql(headers, f'{{ findGalleries(filter: {{ q: "{uid_esc}" }}) {{ galleries {{ id path title }} }} }}')
+            galleries = data.get('findGalleries', {}).get('galleries', [])
+
+        if not galleries:
+            logger.warning(f"No Stash gallery found for path fragment '{stash_path_fragment}'")
+            return
+
+        for gallery in galleries:
+            update_input = {'id': gallery['id'], 'url': source_url, 'tag_ids': tag_ids}
+            if title and not gallery.get('title'):
+                update_input['title'] = title
+            if date_str and len(date_str) == 10:
+                update_input['date'] = date_str
+            if performer_id:
+                update_input['performer_ids'] = [performer_id]
+
+            _stash_gql(headers, '''
+                mutation GalleryUpdate($input: GalleryUpdateInput!) {
+                    galleryUpdate(input: $input) { id }
+                }
+            ''', variables={'input': update_input})
+
+        logger.info(f"Applied Stash metadata: gallery_ids={[g['id'] for g in galleries]}, "
+                    f"tags={tag_names}, performer={creator}, title={title!r}")
+
+    except Exception as e:
+        logger.error(f"Failed to apply Stash gallery metadata: {e}")
+
+
+@app.route('/api/download/gallery', methods=['POST'])
+def download_gallery():
+    """Download images/galleries from any gallery-dl supported site."""
+    data = request.get_json()
+    if not data or 'url' not in data:
+        return jsonify({'error': 'URL is required'}), 400
+
+    url = data['url'].strip()
+    if not url:
+        return jsonify({'error': 'URL cannot be empty'}), 400
+
+    is_adult = bool(data.get('adult', False))
+    paths    = load_paths()['gallery']
+    dest       = '/pictures' if is_adult else '/library-images'
+    dest_label = paths['adult'] if is_adult else paths['library']
+
+    # Fetch metadata before download (fast, ~2s) — only used for Stash tagging
+    meta = _gdl_fetch_metadata(url) if is_adult else {}
+
+    logger.info(f"Starting gallery-dl download: {url} (adult={is_adult})")
+
+    cmd = [
+        'docker', 'exec', 'gallery-dl', 'gallery-dl',
+        '--destination', dest,
+        '--retries', '5',
+        url
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+        if result.returncode == 0:
+            logger.info(f"gallery-dl download complete: {url}")
+            if is_adult:
+                # Fire metadata pipeline in background (scan + tag + performer)
+                threading.Thread(
+                    target=_apply_stash_gallery_metadata,
+                    args=(url, meta),
+                    daemon=True
+                ).start()
+            return jsonify({'success': True, 'message': f'Gallery download complete — images saved to {dest_label}'})
+        else:
+            err = (result.stderr or result.stdout or 'Unknown error').strip()
+            logger.error(f"gallery-dl failed: {err}")
+            return jsonify({'error': f'Download failed: {err[:300]}'}), 500
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Download timed out (max 10 minutes)'}), 500
+    except Exception as e:
+        logger.error(f"Error in gallery-dl download: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 def _delayed_self_command(cmd, delay=1.0):
@@ -2367,6 +2833,18 @@ def bookmarks_page():
 def server_health_page():
     """Serve the Server Health page."""
     return send_from_directory('static', 'infra.html')
+
+@app.route('/gallery-dl.html')
+@app.route('/gallery-dl')
+def gallery_dl_page():
+    """Serve the Gallery-DL site browser page."""
+    return send_from_directory('static', 'gallery-dl.html')
+
+@app.route('/yt-dlp.html')
+@app.route('/yt-dlp')
+def yt_dlp_page():
+    """Serve the YT-DLP site browser page."""
+    return send_from_directory('static', 'yt-dlp.html')
 
 @app.route('/api/infra/status')
 def infra_status():
@@ -2657,6 +3135,59 @@ def share_status():
     except Exception as e:
         return jsonify({'running': False, 'url': None, 'paths': [], 'error': str(e)})
 
+
+
+# ── Jellyfin media file watcher ───────────────────────────────────────────────
+
+JELLYFIN_WATCH_PATHS = [
+    '/mnt/boston/media/videos',
+    '/mnt/boston/media/music',
+]
+# Seconds to wait after the last file event before firing the scan (debounce)
+JELLYFIN_SCAN_DEBOUNCE = 30
+
+def _start_jellyfin_watcher():
+    """Watch Jellyfin media directories and trigger a library rescan on new files."""
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+    except ImportError:
+        logger.warning("watchdog not installed — Jellyfin file watcher disabled")
+        return
+
+    watch_paths = [p for p in JELLYFIN_WATCH_PATHS if os.path.isdir(p)]
+    if not watch_paths:
+        logger.info("No Jellyfin watch paths found on disk — file watcher skipped")
+        return
+
+    debounce_timer = [None]
+    lock = threading.Lock()
+
+    def _schedule_scan():
+        with lock:
+            if debounce_timer[0]:
+                debounce_timer[0].cancel()
+            t = threading.Timer(JELLYFIN_SCAN_DEBOUNCE, _trigger_jellyfin_scan)
+            t.daemon = True
+            debounce_timer[0] = t
+            t.start()
+
+    class _Handler(FileSystemEventHandler):
+        def on_created(self, event):
+            if not event.is_directory:
+                logger.info(f"Jellyfin watcher: new file detected — {event.src_path}")
+                _schedule_scan()
+
+    observer = Observer()
+    for path in watch_paths:
+        observer.schedule(_Handler(), path, recursive=True)
+        logger.info(f"Jellyfin file watcher armed on {path}")
+
+    observer.daemon = True
+    observer.start()
+
+
+_start_jellyfin_watcher()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8001, debug=False)

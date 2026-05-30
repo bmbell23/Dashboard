@@ -30,6 +30,7 @@ services:
       - FLASK_ENV=production
       # API keys for library scanning - configure these to enable scan buttons
       - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      - JELLYFIN_URL=${JELLYFIN_URL:-http://100.123.154.40:8096}
       - AUDIOBOOKSHELF_API_TOKEN=${AUDIOBOOKSHELF_API_TOKEN:-}
       - STASH_API_KEY=${STASH_API_KEY:-}
       # Cloudflare named tunnel for fileshare

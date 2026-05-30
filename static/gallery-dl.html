@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gallery-DL — Image Downloader</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖼️</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary:    #FF9500;
+            --dark-orange:#E67E00;
+            --light-orange:#FFB84D;
+            --black:      #0A0A0A;
+            --dark-gray:  #1A1A1A;
+            --mid-gray:   #2A2A2A;
+            --border:     #333333;
+            --text:       #FFFFFF;
+            --muted:      #AAAAAA;
+            --shadow:     0 4px 12px rgba(0,0,0,0.4);
+            --glow:       0 0 20px rgba(255,149,0,0.25);
+
+            /* Category accent colors */
+            --c-social:   #1DA1F2;
+            --c-art:      #A855F7;
+            --c-creator:  #F59E0B;
+            --c-adult:    #F43F5E;
+            --c-anime:    #EC4899;
+            --c-manga:    #06B6D4;
+            --c-hosting:  #10B981;
+            --c-comics:   #3B82F6;
+            --c-forums:   #8B5CF6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--black);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            background: linear-gradient(135deg, var(--dark-gray) 0%, #111 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-shrink: 0;
+        }
+
+        .back-btn {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--muted);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .back-btn:hover { color: var(--text); border-color: var(--primary); }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .header-title i {
+            font-size: 1.6rem;
+            color: var(--primary);
+        }
+        .header-title h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .header-title span {
+            font-size: 0.75rem;
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        .header-download {
+            display: flex;
+            gap: 0.5rem;
+            flex: 1;
+            max-width: 600px;
+            margin-left: auto;
+        }
+        .header-download input {
+            flex: 1;
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text);
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .header-download input:focus { border-color: var(--primary); }
+        .header-download input::placeholder { color: var(--muted); }
+
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            border-radius: 0.5rem;
+            color: var(--black);
+            padding: 0.6rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-primary:hover { background: var(--light-orange); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-gear {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--muted);
+            padding: 0.6rem 0.75rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .btn-gear:hover { color: var(--primary); border-color: var(--primary); }
+
+        .mgr-search {
+            flex: 1;
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.4rem;
+            color: var(--text);
+            padding: 0.45rem 0.75rem;
+            font-size: 0.82rem;
+            outline: none;
+            font-family: inherit;
+        }
+        .mgr-search:focus { border-color: var(--primary); }
+        .mgr-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .mgr-table th {
+            background: #1e1e1e; color: var(--muted); font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .05em; padding: .5rem .75rem; text-align: left;
+            position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border);
+        }
+        .mgr-table td { padding: .45rem .75rem; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
+        .mgr-table tr:last-child td { border-bottom: none; }
+        .mgr-table tbody tr:not(.mgr-edit-row):hover td { background: #141414; }
+        .mgr-icon-preview { width: 26px; height: 26px; border-radius: .3rem; display: flex; align-items: center; justify-content: center; font-size: .8rem; }
+        .mgr-cat-select {
+            background: var(--mid-gray); border: 1px solid var(--border); border-radius: .3rem;
+            color: var(--text); padding: .3rem .5rem; font-size: .8rem; cursor: pointer; outline: none; width: 100%;
+        }
+        .mgr-cat-select:focus { border-color: var(--primary); }
+        .mgr-btn {
+            background: #1e1e1e; border: 1px solid var(--border); border-radius: .3rem;
+            color: var(--muted); padding: .3rem .55rem; font-size: .75rem; cursor: pointer; transition: all .15s; white-space: nowrap;
+        }
+        .mgr-btn:hover { color: var(--primary); border-color: var(--primary); }
+        .mgr-btn.danger:hover { color: #ef4444; border-color: #ef4444; }
+        .mgr-btn.primary { color: var(--primary); border-color: var(--primary); }
+        .mgr-btn.primary:hover { background: var(--primary); color: #000; }
+        .mgr-custom-badge {
+            font-size: .65rem; background: #1a2a1a; border: 1px solid #2d5a2d; color: #5aaa5a;
+            border-radius: .25rem; padding: .1rem .35rem; margin-left: .4rem; vertical-align: middle;
+        }
+        .mgr-name { font-weight: 600; }
+        .mgr-domain { color: var(--muted); font-size: .78rem; }
+        .mgr-edit-row td { background: #0d0d0d; padding: .75rem; }
+        .mgr-edit-form { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+        .mgr-full { grid-column: 1 / -1; }
+        .mgr-field { display: flex; flex-direction: column; gap: .22rem; }
+        .mgr-field label { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+        .mgr-field input, .mgr-field select {
+            background: var(--mid-gray); border: 1px solid var(--border); border-radius: .3rem;
+            color: var(--text); padding: .38rem .6rem; font-size: .82rem; outline: none; font-family: inherit;
+        }
+        .mgr-field input:focus, .mgr-field select:focus { border-color: var(--primary); }
+        .mgr-edit-btns { grid-column: 1 / -1; display: flex; gap: .5rem; justify-content: flex-end; margin-top: .2rem; }
+        .mgr-add-section {
+            display: none; border: 1px solid var(--border); border-radius: .5rem;
+            padding: .9rem; background: #0d0d0d; margin-bottom: .75rem;
+        }
+        .mgr-add-section.open { display: block; }
+
+        /* ── Settings modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: #161616;
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.75rem;
+            width: min(480px, 94vw);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.4rem;
+        }
+        .modal-title {
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .modal-title i { color: var(--primary); }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 0.2rem 0.4rem;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--text); }
+        .path-group { margin-bottom: 1.1rem; }
+        .path-group-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.6rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .path-field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.6rem; }
+        .path-field label { font-size: 0.75rem; color: var(--muted); }
+        .path-field input {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.4rem;
+            color: var(--text);
+            padding: 0.45rem 0.75rem;
+            font-size: 0.8rem;
+            font-family: monospace;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .path-field input:focus { border-color: var(--primary); }
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+        .btn-secondary {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--muted);
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover { color: var(--text); border-color: #444; }
+
+        /* ── Toast ── */
+        #toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--dark-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.9rem;
+            color: var(--text);
+            box-shadow: var(--shadow);
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            max-width: 360px;
+        }
+        #toast.show { opacity: 1; transform: translateY(0); }
+        #toast.success { border-color: #34c759; color: #34c759; }
+        #toast.error   { border-color: #ff453a; color: #ff453a; }
+        #toast.info    { border-color: var(--primary); color: var(--primary); }
+
+        /* ── Filter bar ── */
+        .filter-bar {
+            padding: 1rem 2rem 0;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 80px;
+            z-index: 99;
+            background: var(--black);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.75rem;
+        }
+
+        .filter-btn {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            color: var(--muted);
+            padding: 0.4rem 1rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            user-select: none;
+        }
+        .filter-btn:hover { color: var(--text); border-color: #555; }
+        .filter-btn.active {
+            color: var(--black);
+            font-weight: 700;
+            border-color: transparent;
+        }
+
+        .search-wrap {
+            margin-left: auto;
+            position: relative;
+        }
+        .search-wrap i {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            font-size: 0.8rem;
+        }
+        #search {
+            background: var(--mid-gray);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            color: var(--text);
+            padding: 0.4rem 1rem 0.4rem 2rem;
+            font-size: 0.82rem;
+            outline: none;
+            width: 200px;
+            transition: border-color 0.2s, width 0.2s;
+        }
+        #search:focus { border-color: var(--primary); width: 260px; }
+        #search::placeholder { color: var(--muted); }
+
+        /* ── Main layout ── */
+        main {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* ── Category section ── */
+        .category-section {
+            margin-bottom: 2.5rem;
+        }
+        .category-section.hidden { display: none; }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .category-header i {
+            font-size: 1.1rem;
+        }
+        .category-header h2 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .category-count {
+            margin-left: auto;
+            background: var(--mid-gray);
+            border-radius: 1rem;
+            padding: 0.15rem 0.6rem;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        /* ── Site grid ── */
+        .sites-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .site-card {
+            background: var(--dark-gray);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1rem 1rem 0.75rem;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: var(--text);
+            cursor: pointer;
+        }
+        .site-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        .site-card.hidden { display: none; }
+
+        .site-card-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .site-icon {
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+            color: #fff;
+        }
+
+        .site-info { flex: 1; min-width: 0; }
+        .site-name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .site-url {
+            font-size: 0.72rem;
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .site-desc {
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+
+        .site-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+        }
+        .site-tag {
+            background: var(--mid-gray);
+            border-radius: 0.3rem;
+            padding: 0.1rem 0.45rem;
+            font-size: 0.68rem;
+            color: var(--muted);
+        }
+        .site-tag.auth {
+            background: rgba(255, 149, 0, 0.12);
+            color: var(--primary);
+        }
+
+        /* ── No results ── */
+        #no-results {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--muted);
+            display: none;
+        }
+        #no-results i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+        #no-results p { font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <a href="/" class="back-btn"><i class="fas fa-arrow-left"></i> Dashboard</a>
+        <div class="header-title">
+            <i class="fas fa-images"></i>
+            <div>
+                <h1>Gallery-DL</h1>
+                <span>Download images & galleries from 400+ sites</span>
+            </div>
+        </div>
+    </div>
+    <div class="header-download">
+        <input type="url" id="url-input" placeholder="Paste any supported URL to download…" />
+        <button class="btn-primary" id="dl-btn" onclick="downloadUrl()">
+            <i class="fas fa-download"></i> Download
+        </button>
+        <button class="btn-gear" onclick="openSettings()" title="Download path settings">
+            <i class="fas fa-gear"></i>
+        </button>
+        <button class="btn-gear" onclick="openManager()" title="Manage sites" style="margin-left:0.25rem">
+            <i class="fas fa-list"></i>
+        </button>
+    </div>
+</header>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-gear"></i> Download Path Settings</span>
+            <button class="modal-close" onclick="closeSettings()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="path-group">
+            <div class="path-group-title">🔞 Adult Images</div>
+            <div class="path-field">
+                <label>Destination folder</label>
+                <input type="text" id="path-adult" />
+            </div>
+        </div>
+        <div class="path-group">
+            <div class="path-group-title">🖼️ General / Library Images</div>
+            <div class="path-field">
+                <label>Destination folder</label>
+                <input type="text" id="path-library" />
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+            <button class="btn-primary" onclick="savePaths()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manager modal -->
+<div class="modal-overlay" id="manager-modal" onclick="if(event.target===this)closeManager()">
+    <div class="modal" style="width:min(960px,96vw);max-height:92vh;display:flex;flex-direction:column;padding:1.5rem">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-list"></i> Manage Sites</span>
+            <button class="modal-close" onclick="closeManager()"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;align-items:center">
+            <button class="btn-primary" onclick="toggleAddForm()" style="font-size:0.8rem;padding:0.45rem 0.9rem">
+                <i class="fas fa-plus"></i> Add Site
+            </button>
+            <input id="mgr-search" type="text" placeholder="Filter sites…" class="mgr-search" oninput="_mgrFilter=this.value;renderManagerTable()" />
+        </div>
+        <!-- Add form -->
+        <div id="mgr-add-section" class="mgr-add-section">
+            <div style="font-size:0.75rem;color:var(--primary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem">New Site</div>
+            <div class="mgr-edit-form">
+                <div class="mgr-field"><label>Name *</label><input id="add-name" placeholder="Instagram"></div>
+                <div class="mgr-field"><label>URL *</label><input id="add-url" placeholder="https://instagram.com"></div>
+                <div class="mgr-field"><label>Category</label>
+                    <select id="add-cat" class="mgr-cat-select" style="padding:.4rem .6rem"></select>
+                </div>
+                <div class="mgr-field"><label>Icon (Font Awesome)</label><input id="add-icon" placeholder="fab fa-instagram"></div>
+                <div class="mgr-field"><label>Color</label><input type="color" id="add-color" value="#888888" style="height:34px;padding:2px 4px"></div>
+                <div class="mgr-field mgr-full"><label>Description</label><input id="add-desc" placeholder="Short description"></div>
+                <div class="mgr-field mgr-full"><label>Capabilities</label><input id="add-caps" placeholder="Images, Galleries"></div>
+                <div class="mgr-edit-btns">
+                    <button class="mgr-btn" onclick="toggleAddForm()">Cancel</button>
+                    <button class="mgr-btn primary" onclick="addNewSite()"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+        </div>
+        <!-- Table -->
+        <div style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:0.5rem">
+            <table class="mgr-table">
+                <thead>
+                    <tr>
+                        <th style="width:36px"></th>
+                        <th>Name</th>
+                        <th>Domain</th>
+                        <th style="width:140px">Category</th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody id="mgr-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+    </div>
+</header>
+
+<div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-cat="all" onclick="setFilter('all', this)">
+        <i class="fas fa-border-all"></i> All
+    </button>
+    <button class="filter-btn" data-cat="social" onclick="setFilter('social', this)" style="--accent:var(--c-social)">
+        <i class="fas fa-share-nodes" style="color:var(--c-social)"></i> Social Media
+    </button>
+    <button class="filter-btn" data-cat="art" onclick="setFilter('art', this)">
+        <i class="fas fa-palette" style="color:var(--c-art)"></i> Art &amp; Photography
+    </button>
+    <button class="filter-btn" data-cat="creator" onclick="setFilter('creator', this)">
+        <i class="fas fa-star" style="color:var(--c-creator)"></i> Creator Platforms
+    </button>
+    <button class="filter-btn" data-cat="adult" onclick="setFilter('adult', this)">
+        <i class="fas fa-fire" style="color:var(--c-adult)"></i> Adult
+    </button>
+    <button class="filter-btn" data-cat="anime" onclick="setFilter('anime', this)">
+        <i class="fas fa-dragon" style="color:var(--c-anime)"></i> Anime &amp; Booru
+    </button>
+    <button class="filter-btn" data-cat="manga" onclick="setFilter('manga', this)">
+        <i class="fas fa-book-open" style="color:var(--c-manga)"></i> Manga
+    </button>
+    <button class="filter-btn" data-cat="hosting" onclick="setFilter('hosting', this)">
+        <i class="fas fa-cloud" style="color:var(--c-hosting)"></i> Image Hosting
+    </button>
+    <button class="filter-btn" data-cat="forums" onclick="setFilter('forums', this)">
+        <i class="fas fa-comments" style="color:var(--c-forums)"></i> Forums &amp; Boards
+    </button>
+    <div class="search-wrap">
+        <i class="fas fa-search"></i>
+        <input type="text" id="search" placeholder="Search sites…" oninput="filterCards()" />
+    </div>
+</div>
+
+<main id="main">
+
+    <!-- ── Social Media ── -->
+    <section class="category-section" data-cat="social">
+        <div class="category-header">
+            <i class="fas fa-share-nodes" style="color:var(--c-social)"></i>
+            <h2 style="color:var(--c-social)">Social Media</h2>
+            <span class="category-count" id="count-social"></span>
+        </div>
+        <div class="sites-grid" id="grid-social">
+            <!-- cards injected by JS -->
+        </div>
+    </section>
+
+    <!-- ── Art & Photography ── -->
+    <section class="category-section" data-cat="art">
+        <div class="category-header">
+            <i class="fas fa-palette" style="color:var(--c-art)"></i>
+            <h2 style="color:var(--c-art)">Art &amp; Photography</h2>
+            <span class="category-count" id="count-art"></span>
+        </div>
+        <div class="sites-grid" id="grid-art"></div>
+    </section>
+
+    <!-- ── Creator Platforms ── -->
+    <section class="category-section" data-cat="creator">
+        <div class="category-header">
+            <i class="fas fa-star" style="color:var(--c-creator)"></i>
+            <h2 style="color:var(--c-creator)">Creator Platforms</h2>
+            <span class="category-count" id="count-creator"></span>
+        </div>
+        <div class="sites-grid" id="grid-creator"></div>
+    </section>
+
+    <!-- ── Adult ── -->
+    <section class="category-section" data-cat="adult">
+        <div class="category-header">
+            <i class="fas fa-fire" style="color:var(--c-adult)"></i>
+            <h2 style="color:var(--c-adult)">Adult</h2>
+            <span class="category-count" id="count-adult"></span>
+        </div>
+        <div class="sites-grid" id="grid-adult"></div>
+    </section>
+
+    <!-- ── Anime & Booru ── -->
+    <section class="category-section" data-cat="anime">
+        <div class="category-header">
+            <i class="fas fa-dragon" style="color:var(--c-anime)"></i>
+            <h2 style="color:var(--c-anime)">Anime &amp; Booru</h2>
+            <span class="category-count" id="count-anime"></span>
+        </div>
+        <div class="sites-grid" id="grid-anime"></div>
+    </section>
+
+    <!-- ── Manga ── -->
+    <section class="category-section" data-cat="manga">
+        <div class="category-header">
+            <i class="fas fa-book-open" style="color:var(--c-manga)"></i>
+            <h2 style="color:var(--c-manga)">Manga &amp; Comics</h2>
+            <span class="category-count" id="count-manga"></span>
+        </div>
+        <div class="sites-grid" id="grid-manga"></div>
+    </section>
+
+    <!-- ── Image Hosting ── -->
+    <section class="category-section" data-cat="hosting">
+        <div class="category-header">
+            <i class="fas fa-cloud" style="color:var(--c-hosting)"></i>
+            <h2 style="color:var(--c-hosting)">Image Hosting &amp; File Sharing</h2>
+            <span class="category-count" id="count-hosting"></span>
+        </div>
+        <div class="sites-grid" id="grid-hosting"></div>
+    </section>
+
+    <!-- ── Forums & Boards ── -->
+    <section class="category-section" data-cat="forums">
+        <div class="category-header">
+            <i class="fas fa-comments" style="color:var(--c-forums)"></i>
+            <h2 style="color:var(--c-forums)">Forums &amp; Imageboards</h2>
+            <span class="category-count" id="count-forums"></span>
+        </div>
+        <div class="sites-grid" id="grid-forums"></div>
+    </section>
+
+    <div id="no-results">
+        <i class="fas fa-search"></i>
+        <p>No sites found matching your search.</p>
+    </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const API_URL = 'http://100.69.184.113:8001/api';
+
+// ── Site data ──────────────────────────────────────────────────────────────────
+const DEFAULT_SITES = [
+    // ── SOCIAL MEDIA ──
+    { cat:'social', name:'Twitter / X', url:'https://x.com', icon:'fab fa-x-twitter', color:'#000000', desc:'Tweets, media timelines, likes, bookmarks, hashtags, user profiles', caps:'Media, Tweets, Bookmarks', auth:'Cookies' },
+    { cat:'social', name:'Instagram', url:'https://www.instagram.com', icon:'fab fa-instagram', color:'#E1306C', desc:'Posts, reels, stories, highlights, collections, tagged posts', caps:'Posts, Reels, Stories', auth:'Cookies' },
+    { cat:'social', name:'Reddit', url:'https://www.reddit.com', icon:'fab fa-reddit', color:'#FF4500', desc:'Subreddit posts, user profiles, home feed, individual images', caps:'Subreddits, Posts, Users', auth:'OAuth' },
+    { cat:'social', name:'Bluesky', url:'https://bsky.app', icon:'fas fa-cloud', color:'#0085ff', desc:'Posts, user profiles, feeds, hashtags, liked posts, bookmarks', caps:'Posts, Profiles, Feeds', auth:'Supported' },
+    { cat:'social', name:'Tumblr', url:'https://www.tumblr.com', icon:'fab fa-tumblr', color:'#35465c', desc:'Posts, tag searches, followed users, likes, day archives', caps:'Posts, Tags, Likes', auth:'OAuth' },
+    { cat:'social', name:'Pinterest', url:'https://www.pinterest.com', icon:'fab fa-pinterest', color:'#E60023', desc:'Boards, pins, search results, user profiles, related pins', caps:'Boards, Pins, Search', auth:'Cookies' },
+    { cat:'social', name:'TikTok', url:'https://www.tiktok.com', icon:'fab fa-tiktok', color:'#010101', desc:'User posts, likes, saved posts, stories, reposts', caps:'Posts, Likes, Stories', auth:'Cookies' },
+    { cat:'social', name:'Facebook', url:'https://www.facebook.com', icon:'fab fa-facebook', color:'#1877F2', desc:'Albums, photos, profile photos, user profiles, sets', caps:'Albums, Photos', auth:'Cookies' },
+    { cat:'social', name:'VSCO', url:'https://vsco.co', icon:'fas fa-camera', color:'#1F1F1F', desc:'Galleries, collections, avatars, individual images, videos', caps:'Galleries, Collections' },
+    { cat:'social', name:'Mastodon', url:'https://mastodon.social', icon:'fab fa-mastodon', color:'#6364FF', desc:'Statuses, media files, bookmarks, liked posts, user profiles across all instances', caps:'Statuses, Media', auth:'Supported' },
+    { cat:'social', name:'Discord', url:'https://discord.com', icon:'fab fa-discord', color:'#5865F2', desc:'Channel messages, DMs, server attachments and server searches', caps:'Channels, Servers', auth:'Cookies' },
+    { cat:'social', name:'VK', url:'https://vk.com', icon:'fab fa-vk', color:'#4680C2', desc:'Albums, photos, tagged photos, individual wall posts', caps:'Albums, Photos' },
+    { cat:'social', name:'Scrolller', url:'https://scrolller.com', icon:'fas fa-scroll', color:'#FF4500', desc:'Reddit-backed subreddit browser — posts, followed subreddits', caps:'Subreddits, Posts', auth:'Supported' },
+
+    // ── ART & PHOTOGRAPHY ──
+    { cat:'art', name:'DeviantArt', url:'https://www.deviantart.com', icon:'fab fa-deviantart', color:'#05CC47', desc:'Full gallery downloads, collections, favorites, tag searches, scraps, status updates', caps:'Galleries, Collections, Search', auth:'OAuth' },
+    { cat:'art', name:'ArtStation', url:'https://www.artstation.com', icon:'fas fa-paint-brush', color:'#13AFF0', desc:'Professional portfolios, artwork listings, challenges, collections, search results', caps:'Portfolios, Artworks, Search' },
+    { cat:'art', name:'Flickr', url:'https://www.flickr.com', icon:'fab fa-flickr', color:'#FF0084', desc:'Albums, favorites, galleries, groups, search results, full user profiles', caps:'Albums, Groups, Search', auth:'OAuth' },
+    { cat:'art', name:'500px', url:'https://500px.com', icon:'fas fa-aperture', color:'#0099E5', desc:'Favorites, galleries, individual images, user profiles', caps:'Galleries, Favorites' },
+    { cat:'art', name:'Unsplash', url:'https://unsplash.com', icon:'fas fa-image', color:'#FFFFFF', desc:'Free high-resolution stock photos — collections, search results, user profiles', caps:'Collections, Search' },
+    { cat:'art', name:'Pexels', url:'https://pexels.com', icon:'fas fa-image', color:'#05A081', desc:'Free stock photos and videos — collections, search results, user profiles', caps:'Collections, Search' },
+    { cat:'art', name:'Wallhaven', url:'https://wallhaven.cc', icon:'fas fa-desktop', color:'#CC4444', desc:'Wallpaper collections, search results, individual images — supports SFW/NSFW filter', caps:'Collections, Search', auth:'API Key' },
+    { cat:'art', name:'Behance', url:'https://www.behance.net', icon:'fab fa-behance', color:'#0057FF', desc:'Design portfolios, project collections, user profiles', caps:'Portfolios, Collections' },
+    { cat:'art', name:'WikiArt', url:'https://www.wikiart.org', icon:'fas fa-landmark', color:'#8B6F47', desc:'Fine art from every era — artists, artwork listings, individual images', caps:'Artists, Artworks' },
+    { cat:'art', name:'SmugMug', url:'https://www.smugmug.com', icon:'fas fa-camera-retro', color:'#3D72A4', desc:'Albums, individual images, images from users and folders', caps:'Albums, Images', auth:'OAuth' },
+    { cat:'art', name:'Civitai', url:'https://www.civitai.com', icon:'fas fa-robot', color:'#1971C2', desc:'AI-generated art — models, posts, collections, image searches, user profiles', caps:'Models, Posts, Search' },
+    { cat:'art', name:'Newgrounds', url:'https://www.newgrounds.com', icon:'fas fa-star-half-alt', color:'#F5A623', desc:'Art, movies, games, audio — favorites, user profiles, search results', caps:'Art, Media, Search', auth:'Supported' },
+    { cat:'art', name:'Itaku', url:'https://itaku.ee', icon:'fas fa-palette', color:'#7C3AED', desc:'Galleries, posts, bookmarks, search results, user profiles', caps:'Galleries, Posts, Search' },
+    { cat:'art', name:'Pillowfort', url:'https://www.pillowfort.social', icon:'fas fa-couch', color:'#8B5CF6', desc:'Community posts and user profiles', caps:'Posts, Profiles', auth:'Supported' },
+    { cat:'art', name:'Weasyl', url:'https://www.weasyl.com', icon:'fas fa-paw', color:'#9B4DCA', desc:'Submissions, favorites, folders, journals', caps:'Submissions, Favorites', auth:'API Key' },
+    { cat:'art', name:'Piczel', url:'https://piczel.tv', icon:'fas fa-broadcast-tower', color:'#6C63FF', desc:'Folders, individual images, user profiles', caps:'Folders, Images' },
+    { cat:'art', name:'Lexica', url:'https://lexica.art', icon:'fas fa-magic', color:'#6366F1', desc:'AI art search results', caps:'Search Results' },
+    { cat:'art', name:'Skeb', url:'https://skeb.jp', icon:'fas fa-pen-nib', color:'#00A0E9', desc:'Commission art — works, user profiles, search results', caps:'Works, Profiles' },
+    { cat:'art', name:'Adobe Portfolio', url:'https://www.myportfolio.com', icon:'fab fa-adobe', color:'#FF0000', desc:'Designer portfolios and galleries', caps:'Galleries' },
+    { cat:'art', name:'Wallpaper Cave', url:'https://wallpapercave.com', icon:'fas fa-mountain', color:'#3B82F6', desc:'Wallpaper search results and individual images', caps:'Search, Images' },
+
+    // ── CREATOR PLATFORMS ──
+    { cat:'creator', name:'Patreon', url:'https://www.patreon.com', icon:'fab fa-patreon', color:'#F96854', desc:'Creator posts, collections, user profiles — requires active subscription', caps:'Posts, Collections', auth:'Cookies' },
+    { cat:'creator', name:'Kemono', url:'https://kemono.cr', icon:'fas fa-paw', color:'#FF6B9D', desc:'Archived creator content from Patreon, Fanbox, OnlyFans, Gumroad and more', caps:'Artists, Posts, Favorites', auth:'Supported' },
+    { cat:'creator', name:'Coomer', url:'https://coomer.st', icon:'fas fa-heart', color:'#FF6B9D', desc:'Archived creator content from OnlyFans, Fansly, and other subscription platforms', caps:'Artists, Posts, Favorites', auth:'Supported' },
+    { cat:'creator', name:'Fansly', url:'https://fansly.com', icon:'fas fa-star', color:'#1FA0D2', desc:'Creator media, posts, home feed, account lists', caps:'Creator Media, Posts' },
+    { cat:'creator', name:'SubscribeStar', url:'https://www.subscribestar.com', icon:'fas fa-star-half-alt', color:'#45B964', desc:'Posts and user profiles from subscription creators', caps:'Posts, Profiles', auth:'Supported' },
+    { cat:'creator', name:'pixivFANBOX', url:'https://www.fanbox.cc', icon:'fas fa-box', color:'#FF6699', desc:'Creator posts, home feed, supported user feed, tag searches', caps:'Posts, Feeds', auth:'Cookies' },
+    { cat:'creator', name:'Boosty', url:'https://www.boosty.to', icon:'fas fa-bolt', color:'#F7931A', desc:'Posts, user profiles, subscriptions feed — Russian Patreon alternative', caps:'Posts, Profiles', auth:'Cookies' },
+    { cat:'creator', name:'Nekohouse', url:'https://nekohouse.su', icon:'fas fa-house', color:'#FF9FB3', desc:'Posts and user profiles', caps:'Posts, Profiles' },
+    { cat:'creator', name:'Hotleak', url:'https://hotleak.vip', icon:'fas fa-fire', color:'#FF4500', desc:'Categories, creators, posts, search results', caps:'Creators, Posts, Search' },
+
+    // ── ADULT ──
+    { cat:'adult', name:'Pornhub', url:'https://www.pornhub.com', icon:'fas fa-play-circle', color:'#F9A11B', desc:'Photo galleries, GIFs, user profile photos', caps:'Galleries, Photos, GIFs' },
+    { cat:'adult', name:'xHamster', url:'https://xhamster.com', icon:'fas fa-play', color:'#FF6600', desc:'Photo galleries and user profiles', caps:'Galleries, Profiles' },
+    { cat:'adult', name:'XVideos', url:'https://www.xvideos.com', icon:'fas fa-film', color:'FF0000', desc:'Photo galleries and user profiles', caps:'Galleries, Profiles' },
+    { cat:'adult', name:'EroMe', url:'https://www.erome.com', icon:'fas fa-heart', color:'#E91E8C', desc:'Albums, search results, full user profiles', caps:'Albums, Search' },
+    { cat:'adult', name:'ImageFap', url:'https://www.imagefap.com', icon:'fas fa-images', color:'#CC0000', desc:'Folders, galleries, individual images, user profiles', caps:'Galleries, Folders' },
+    { cat:'adult', name:'Luscious', url:'https://members.luscious.net', icon:'fas fa-fire-alt', color:'#FF3366', desc:'Albums and search results', caps:'Albums, Search' },
+    { cat:'adult', name:'Motherless', url:'https://motherless.com', icon:'fas fa-eye', color:'#333333', desc:'Galleries, groups, media files', caps:'Galleries, Groups' },
+    { cat:'adult', name:'RedGIFs', url:'https://redgifs.com', icon:'fas fa-gif', color:'#FF3041', desc:'Collections, individual images, niches, search results, user profiles', caps:'Collections, Search' },
+    { cat:'adult', name:'Sex.com', url:'https://www.sex.com', icon:'fas fa-venus-mars', color:'#E60026', desc:'Boards, feed, likes, pins, related pins, search results', caps:'Boards, Pins, Search' },
+    { cat:'adult', name:'PornPics', url:'https://www.pornpics.com', icon:'fas fa-camera', color:'#FF6900', desc:'Categories, galleries, listings, search results, tag searches', caps:'Galleries, Search' },
+    { cat:'adult', name:'Fapello', url:'https://fapello.com', icon:'fas fa-user', color:'#FF4081', desc:'Model profiles, videos, trending posts, popular videos', caps:'Models, Posts' },
+    { cat:'adult', name:'NudoStar', url:'https://nudostar.tv', icon:'fas fa-star', color:'#FF1744', desc:'Individual images and model profiles', caps:'Images, Models' },
+    { cat:'adult', name:'Vipergirls', url:'https://vipergirls.to', icon:'fas fa-forum', color:'#CC0066', desc:'Forum posts and threads with embedded galleries', caps:'Posts, Threads', auth:'Supported' },
+    { cat:'adult', name:'NSFWalbum', url:'https://nsfwalbum.com', icon:'fas fa-folder-open', color:'#D32F2F', desc:'User-submitted albums', caps:'Albums' },
+    { cat:'adult', name:'Realbooru', url:'https://realbooru.com', icon:'fas fa-photo-film', color:'#880E4F', desc:'Real photo booru — favorites, pools, posts, tag searches', caps:'Posts, Tags, Pools' },
+    { cat:'adult', name:'Sxypix', url:'https://sxypix.com', icon:'fas fa-images', color:'#AD1457', desc:'Adult photo galleries', caps:'Galleries' },
+    { cat:'adult', name:'Pictoa', url:'https://pictoa.com', icon:'fas fa-image', color:'#C62828', desc:'Albums and individual images', caps:'Albums, Images' },
+    { cat:'adult', name:'FitNakedGirls', url:'https://fitnakedgirls.com', icon:'fas fa-dumbbell', color:'#E53935', desc:'Fitness content — blogs, categories, galleries, tag searches', caps:'Galleries, Categories' },
+    { cat:'adult', name:'Bellazon', url:'https://www.bellazon.com', icon:'fas fa-female', color:'#E91E63', desc:'Model forum — posts, threads, embedded galleries', caps:'Forums, Threads' },
+
+    // ── ANIME & BOORU ──
+    { cat:'anime', name:'Danbooru', url:'https://danbooru.donmai.us', icon:'fas fa-dragon', color:'#EF8C3C', desc:'The original booru — pools, posts, artist pages, tag searches, popular images', caps:'Posts, Pools, Tags', auth:'Supported' },
+    { cat:'anime', name:'Gelbooru', url:'https://gelbooru.com', icon:'fas fa-dragon', color:'#99CCFF', desc:'Favorites, pools, posts, redirects, tag searches', caps:'Posts, Pools, Tags' },
+    { cat:'anime', name:'Sankaku Channel', url:'https://sankaku.app', icon:'fas fa-triangle-exclamation', color:'#FF9900', desc:'Booru for anime, manga, and cosplay — pools, posts, tag searches, book searches', caps:'Posts, Pools, Tags', auth:'Supported' },
+    { cat:'anime', name:'Zerochan', url:'https://www.zerochan.net', icon:'fas fa-torii-gate', color:'#336699', desc:'High-quality anime wallpapers and art — individual images, tag searches', caps:'Images, Tags', auth:'Supported' },
+    { cat:'anime', name:'pixiv', url:'https://www.pixiv.net', icon:'fas fa-pen', color:'#009FFF', desc:'Artworks, rankings, favorites, follows, tag searches, series, illustrations', caps:'Artworks, Rankings, Tags', auth:'OAuth' },
+    { cat:'anime', name:'Rule 34 XXX', url:'https://rule34.xxx', icon:'fas fa-infinity', color:'#7B1FA2', desc:'Favorites, pools, posts, tag searches', caps:'Posts, Pools, Tags' },
+    { cat:'anime', name:'Safebooru', url:'https://safebooru.org', icon:'fas fa-shield-halved', color:'#2196F3', desc:'SFW-only booru — favorites, pools, posts, tag searches', caps:'Posts, Pools, Tags' },
+    { cat:'anime', name:'Rule 34 Paheal', url:'https://rule34.paheal.net', icon:'fas fa-infinity', color:'#9C27B0', desc:'Posts and tag searches', caps:'Posts, Tags' },
+    { cat:'anime', name:'Idol Complex', url:'https://www.idolcomplex.com', icon:'fas fa-music', color:'#FF69B4', desc:'Idol and cosplay booru — pools, posts, tag searches', caps:'Posts, Pools', auth:'Supported' },
+    { cat:'anime', name:'Nozomi.la', url:'https://nozomi.la', icon:'fas fa-leaf', color:'#4CAF50', desc:'Anime image archive — site index, posts, search results, tag searches', caps:'Posts, Search, Tags' },
+    { cat:'anime', name:'e621', url:'https://e621.net', icon:'fas fa-paw', color:'#152F56', desc:'Furry art booru — artists, favorites, pools, popular images, posts, tag searches', caps:'Posts, Pools, Tags', auth:'Supported' },
+    { cat:'anime', name:'e926', url:'https://e926.net', icon:'fas fa-paw', color:'#1A3A5C', desc:'SFW variant of e621 — artists, favorites, pools, posts, tag searches', caps:'Posts, Pools, Tags' },
+    { cat:'anime', name:'Fur Affinity', url:'https://www.furaffinity.net', icon:'fas fa-paw', color:'#FAAF3A', desc:'Furry art community — galleries, favorites, scraps, search results, user profiles', caps:'Galleries, Search', auth:'Cookies' },
+    { cat:'anime', name:'Inkbunny', url:'https://inkbunny.net', icon:'fas fa-feather', color:'#5C85C8', desc:'Furry and anthro art — pools, posts, favorites, user profiles', caps:'Posts, Pools', auth:'Supported' },
+    { cat:'anime', name:'Iwara', url:'https://www.iwara.tv', icon:'fas fa-video', color:'#FF4081', desc:'3D anime videos and images — favorites, user profiles, playlists', caps:'Videos, Images', auth:'Supported' },
+    { cat:'anime', name:'Simply Hentai', url:'https://www.simply-hentai.com', icon:'fas fa-book', color:'#FF69B4', desc:'Galleries, manga, series, tag searches, language filters', caps:'Galleries, Manga, Tags' },
+    { cat:'anime', name:'Dynasty Reader', url:'https://dynasty-scans.com', icon:'fas fa-crown', color:'#B39DDB', desc:'Yuri manga — anthologies, chapters, individual images, search results', caps:'Chapters, Manga' },
+    { cat:'anime', name:'Twibooru', url:'https://twibooru.org', icon:'fas fa-horse', color:'#9B59B6', desc:'MLP-focused booru — galleries, posts, search results', caps:'Posts, Galleries' },
+    { cat:'anime', name:'Yiff Verse', url:'https://yiffverse.com', icon:'fas fa-paw', color:'#FF6B35', desc:'Furry adult content — playlists, posts, tag searches', caps:'Posts, Tags' },
+    { cat:'anime', name:'Civitai (AI Anime)', url:'https://www.civitai.com', icon:'fas fa-robot', color:'#1971C2', desc:'AI model images, posts, and collections with anime/art tags', caps:'Images, Models, Posts' },
+
+    // ── MANGA ──
+    { cat:'manga', name:'MangaDex', url:'https://mangadex.org', icon:'fas fa-book-open', color:'#FF6740', desc:'The best manga reading site — chapters, covers, MDlists, updates feed, library', caps:'Chapters, Manga', auth:'Supported' },
+    { cat:'manga', name:'Comick', url:'https://comick.io', icon:'fas fa-book', color:'#3B82F6', desc:'Chapters, covers, manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'MangaFire', url:'https://mangafire.to', icon:'fas fa-fire', color:'#EF4444', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'MangaPark', url:'https://mangapark.net', icon:'fas fa-tree', color:'#22C55E', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'MangaReader', url:'https://mangareader.to', icon:'fas fa-book-reader', color:'#8B5CF6', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'MangaNelo', url:'https://www.nelomanga.net', icon:'fas fa-book', color:'#F59E0B', desc:'Bookmarks, chapters, manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'MangaFreak', url:'https://ww2.mangafreak.me', icon:'fas fa-bolt', color:'#EC4899', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'Manga Fox', url:'https://fanfox.net', icon:'fas fa-fox', color:'#FF6B35', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'HiperDEX', url:'https://hiperdex.com', icon:'fas fa-book', color:'#06B6D4', desc:'Artists, chapters, manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'Webtoon', url:'https://www.webtoons.com', icon:'fas fa-scroll', color:'#00D564', desc:'Official Webtoon platform — artists, comics, episodes', caps:'Comics, Episodes' },
+    { cat:'manga', name:'Read Comic Online', url:'https://readcomiconline.li', icon:'fas fa-mask', color:'#3B82F6', desc:'Comic issues, comics, tag searches', caps:'Issues, Comics, Tags' },
+    { cat:'manga', name:'Hentai2Read', url:'https://hentai2read.com', icon:'fas fa-book', color:'#FF69B4', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'HentaiHere', url:'https://hentaihere.com', icon:'fas fa-book', color:'#FF4081', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'IMHentai', url:'https://imhentai.xxx', icon:'fas fa-book', color:'#D32F2F', desc:'Galleries, search results, tag searches', caps:'Galleries, Search, Tags' },
+    { cat:'manga', name:'HentaiFox', url:'https://hentaifox.com', icon:'fas fa-book', color:'#FF5722', desc:'Galleries, search results, tag searches', caps:'Galleries, Search' },
+    { cat:'manga', name:'8muses', url:'https://comics.8muses.com', icon:'fas fa-book-open', color:'#795548', desc:'Adult comic albums', caps:'Albums' },
+    { cat:'manga', name:'AllPornComic', url:'https://allporncomic.com', icon:'fas fa-book', color:'#E91E63', desc:'Chapters, manga, tag searches', caps:'Chapters, Manga, Tags' },
+    { cat:'manga', name:'KaliScan', url:'https://kaliscan.me', icon:'fas fa-book', color:'#0891B2', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'Dandadan', url:'https://dandadan.net', icon:'fas fa-ghost', color:'#6366F1', desc:'Chapters and manga', caps:'Chapters, Manga' },
+    { cat:'manga', name:'TCB Scans', url:'https://tcbscans.me', icon:'fas fa-book', color:'#DC2626', desc:'Scanlation chapters and manga', caps:'Chapters, Manga' },
+
+    // ── IMAGE HOSTING ──
+    { cat:'hosting', name:'Imgur', url:'https://imgur.com', icon:'fas fa-image', color:'#1BB76E', desc:'Albums, favorites, galleries, individual images, subreddits, tag searches, user profiles', caps:'Albums, Galleries, Search' },
+    { cat:'hosting', name:'Bunkr', url:'https://bunkr.si', icon:'fas fa-box-archive', color:'#3B82F6', desc:'File hosting albums and media files', caps:'Albums, Media' },
+    { cat:'hosting', name:'Cyberdrop', url:'https://cyberdrop.cr', icon:'fas fa-droplet', color:'#06B6D4', desc:'Album hosting and media files', caps:'Albums, Media' },
+    { cat:'hosting', name:'Catbox', url:'https://catbox.moe', icon:'fas fa-cat', color:'#8B5CF6', desc:'Albums and individual files', caps:'Albums, Files' },
+    { cat:'hosting', name:'Gofile', url:'https://gofile.io', icon:'fas fa-folder', color:'#F59E0B', desc:'Shared folders', caps:'Folders' },
+    { cat:'hosting', name:'pixeldrain', url:'https://pixeldrain.com', icon:'fas fa-droplet', color:'#EC4899', desc:'Albums, files, filesystems', caps:'Albums, Files' },
+    { cat:'hosting', name:'ImgBB', url:'https://imgbb.com', icon:'fas fa-image', color:'#2196F3', desc:'Albums, individual images, user profiles', caps:'Albums, Images', auth:'Supported' },
+    { cat:'hosting', name:'ImageBam', url:'https://www.imagebam.com', icon:'fas fa-images', color:'#FF6B6B', desc:'Galleries and individual images', caps:'Galleries, Images' },
+    { cat:'hosting', name:'ImageChest', url:'https://imgchest.com', icon:'fas fa-box', color:'#10B981', desc:'Galleries and user profiles', caps:'Galleries, Profiles' },
+    { cat:'hosting', name:'ImageFap', url:'https://www.imagefap.com', icon:'fas fa-folder-open', color:'#CC0000', desc:'Folders, galleries, individual images, user profiles', caps:'Galleries, Folders' },
+    { cat:'hosting', name:'imgbox', url:'https://imgbox.com', icon:'fas fa-images', color:'#4CAF50', desc:'Galleries and individual images', caps:'Galleries, Images' },
+    { cat:'hosting', name:'Lensdump', url:'https://lensdump.com', icon:'fas fa-camera', color:'#6366F1', desc:'Albums and individual images', caps:'Albums, Images' },
+    { cat:'hosting', name:'Koofr', url:'https://koofr.net', icon:'fas fa-cloud', color:'#00BCD4', desc:'Shared links and cloud storage', caps:'Shared Links' },
+    { cat:'hosting', name:'Fuskator', url:'https://fuskator.com', icon:'fas fa-images', color:'#FF9800', desc:'Galleries and search results', caps:'Galleries, Search' },
+    { cat:'hosting', name:'Telegraph', url:'https://telegra.ph', icon:'fab fa-telegram', color:'#2CA5E0', desc:'Telegra.ph image galleries', caps:'Galleries' },
+    { cat:'hosting', name:'Tenor', url:'https://tenor.com', icon:'fas fa-gif', color:'#1A73E8', desc:'GIFs — individual images, search results, user profiles', caps:'GIFs, Search' },
+    { cat:'hosting', name:'turbo.cr', url:'https://turbo.cr', icon:'fas fa-bolt', color:'#F59E0B', desc:'Albums and media files', caps:'Albums, Media' },
+
+    // ── FORUMS & IMAGEBOARDS ──
+    { cat:'forums', name:'4chan', url:'https://www.4chan.org', icon:'fas fa-clover', color:'#117743', desc:'Boards and threads — all boards supported', caps:'Boards, Threads' },
+    { cat:'forums', name:'Reddit (Pholder)', url:'https://pholder.com', icon:'fab fa-reddit', color:'#FF4500', desc:'Reddit subreddit and user profile browser with image focus', caps:'Subreddits, Users' },
+    { cat:'forums', name:'JoyReactor', url:'https://joyreactor.com', icon:'fas fa-smile', color:'#FFD700', desc:'Posts, search results, tag searches, user profiles', caps:'Posts, Tags' },
+    { cat:'forums', name:'Newgrounds (Forum)', url:'https://www.newgrounds.com', icon:'fas fa-gamepad', color:'#F5A623', desc:'Art, movies, games forum posts and media files', caps:'Posts, Media', auth:'Supported' },
+    { cat:'forums', name:'8chan', url:'https://8chan.moe', icon:'fas fa-infinity', color:'#555555', desc:'Boards and threads', caps:'Boards, Threads' },
+    { cat:'forums', name:'Warosu', url:'https://warosu.org', icon:'fas fa-archive', color:'#607D8B', desc:'4chan archive threads', caps:'Threads' },
+    { cat:'forums', name:'4archive', url:'https://4archive.org', icon:'fas fa-box-archive', color:'#4CAF50', desc:'4chan archive — boards and threads', caps:'Boards, Threads' },
+    { cat:'forums', name:'Vipergirls (Forum)', url:'https://vipergirls.to', icon:'fas fa-comments', color:'#CC0066', desc:'Forum posts and threads with embedded gallery links', caps:'Posts, Threads', auth:'Supported' },
+    { cat:'forums', name:'Pillowfort (Social)', url:'https://www.pillowfort.social', icon:'fas fa-users', color:'#8B5CF6', desc:'Social blogging platform — posts and user profiles', caps:'Posts, Profiles', auth:'Supported' },
+];
+
+const PAGE_KEY = 'gallery';
+const CATS     = ['social','art','creator','adult','anime','manga','hosting','forums'];
+const CAT_LABELS = {
+    social:'📱 Social Media', art:'🎨 Art & Photography', creator:'⭐ Creator Platforms',
+    adult:'🔞 Adult', anime:'🎌 Anime & Booru', manga:'📚 Manga', hosting:'🖼 Image Hosting', forums:'💬 Forums'
+};
+
+let SITES = DEFAULT_SITES.slice();
+let ADULT_DOMAINS = new Set();
+
+function rebuildDomainSets() {
+    ADULT_DOMAINS = new Set(SITES.filter(s => s.cat === 'adult').map(s => { try { return new URL(s.url).hostname.replace(/^www\./,''); } catch { return ''; }}));
+}
+rebuildDomainSets();
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function iconBg(color) {
+    // darken slightly for background
+    return `background:${color}22; border:1px solid ${color}44;`;
+}
+
+function buildCard(site) {
+    const authBadge = site.auth
+        ? `<span class="site-tag auth"><i class="fas fa-key"></i> ${site.auth}</span>`
+        : '';
+    return `
+    <a href="${site.url}" target="_blank" class="site-card" data-name="${site.name.toLowerCase()}" data-desc="${site.desc.toLowerCase()}" data-cat="${site.cat}">
+        <div class="site-card-top">
+            <div class="site-icon" style="${iconBg(site.color || '#888')}">
+                <i class="${site.icon}" style="color:${site.color || '#888'}"></i>
+            </div>
+            <div class="site-info">
+                <div class="site-name">${site.name}</div>
+                <div class="site-url">${new URL(site.url).hostname}</div>
+            </div>
+        </div>
+        <div class="site-desc">${site.desc}</div>
+        <div class="site-tags">
+            ${site.caps.split(', ').map(c => `<span class="site-tag">${c}</span>`).join('')}
+            ${authBadge}
+        </div>
+    </a>`;
+}
+
+function render() {
+    const allCats = [...new Set(SITES.map(s => s.cat))];
+    const main = document.getElementById('main');
+    allCats.forEach(cat => {
+        if (!document.getElementById('grid-' + cat)) {
+            const sec = document.createElement('section');
+            sec.className = 'category-section';
+            sec.dataset.cat = cat;
+            sec.innerHTML = '<div class="category-header"><span class="category-title">' + (CAT_LABELS[cat] || cat) + '</span><span class="category-count" id="count-' + cat + '"></span></div><div class="sites-grid" id="grid-' + cat + '"></div>';
+            main.insertBefore(sec, document.getElementById('no-results'));
+        }
+        const sites = SITES.filter(s => s.cat === cat);
+        const grid = document.getElementById('grid-' + cat);
+        if (grid) grid.innerHTML = sites.map(buildCard).join('');
+        const counter = document.getElementById('count-' + cat);
+        if (counter) counter.textContent = sites.length;
+    });
+    // Hide sections with no sites
+    document.querySelectorAll('.category-section').forEach(sec => {
+        sec.style.display = SITES.some(s => s.cat === sec.dataset.cat) ? '' : 'none';
+    });
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────────
+let activeFilter = 'all';
+
+function setFilter(cat, btn) {
+    activeFilter = cat;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '';
+        b.style.color = '';
+        b.style.borderColor = '';
+    });
+
+    const colors = {
+        all:'#FF9500', social:'#1DA1F2', art:'#A855F7', creator:'#F59E0B',
+        adult:'#F43F5E', anime:'#EC4899', manga:'#06B6D4', hosting:'#10B981', forums:'#8B5CF6'
+    };
+    btn.classList.add('active');
+    const c = colors[cat] || '#FF9500';
+    btn.style.background = c;
+    btn.style.color = cat === 'all' ? '#000' : '#fff';
+    btn.style.borderColor = c;
+
+    filterCards();
+}
+
+function filterCards() {
+    const q = document.getElementById('search').value.toLowerCase().trim();
+    const sections = document.querySelectorAll('.category-section');
+    let totalVisible = 0;
+
+    sections.forEach(sec => {
+        const secCat = sec.dataset.cat;
+        const showSection = activeFilter === 'all' || activeFilter === secCat;
+
+        if (!showSection) { sec.classList.add('hidden'); return; }
+        sec.classList.remove('hidden');
+
+        const cards = sec.querySelectorAll('.site-card');
+        let sectionVisible = 0;
+        cards.forEach(card => {
+            const matchesSearch = !q || card.dataset.name.includes(q) || card.dataset.desc.includes(q);
+            if (matchesSearch) { card.classList.remove('hidden'); sectionVisible++; }
+            else { card.classList.add('hidden'); }
+        });
+
+        totalVisible += sectionVisible;
+        sec.classList.toggle('hidden', sectionVisible === 0);
+    });
+
+    document.getElementById('no-results').style.display = totalVisible === 0 ? 'block' : 'none';
+}
+
+// ── Download ───────────────────────────────────────────────────────────────────
+function isAdultUrl(url) {
+    try {
+        const host = new URL(url).hostname.replace(/^www\./, '');
+        return ADULT_DOMAINS.has(host);
+    } catch { return false; }
+}
+
+function downloadSite(baseUrl, cat, btn) {
+    const url = prompt(`Enter a specific URL from ${new URL(baseUrl).hostname}:`, baseUrl);
+    if (!url || !url.trim()) return;
+    triggerDownload(url.trim(), btn, cat === 'adult');
+}
+
+// ── Settings modal (download paths) ───────────────────────────────────────────
+async function openSettings() {
+    try {
+        const res = await fetch(`${API_URL}/settings/paths`);
+        const data = await res.json();
+        const p = data.gallery || {};
+        document.getElementById('path-adult').value   = p.adult   || '';
+        document.getElementById('path-library').value = p.library || '';
+    } catch(e) { showToast('Could not load settings', 'error'); return; }
+    document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('open');
+}
+async function savePaths() {
+    const res0  = await fetch(`${API_URL}/settings/paths`);
+    const full  = await res0.json();
+    full.gallery = {
+        adult:   document.getElementById('path-adult').value.trim(),
+        library: document.getElementById('path-library').value.trim(),
+    };
+    try {
+        const res = await fetch(`${API_URL}/settings/paths`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(full)
+        });
+        if (res.ok) { showToast('Paths saved!', 'success'); closeSettings(); }
+        else showToast('Save failed', 'error');
+    } catch(e) { showToast('Network error', 'error'); }
+}
+
+function downloadUrl() {
+    const input = document.getElementById('url-input');
+    const url = input.value.trim();
+    if (!url) { showToast('Please enter a URL', 'info'); return; }
+    input.value = '';
+    triggerDownload(url, document.getElementById('dl-btn'), isAdultUrl(url));
+}
+
+async function triggerDownload(url, btn, adult = false) {
+    btn.disabled = true;
+    if (btn.classList) btn.classList.add('loading');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading…';
+
+    try {
+        const res = await fetch(`${API_URL}/download/gallery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, adult })
+        });
+        const data = await res.json();
+        if (res.ok) showToast(data.message || 'Download complete!', 'success');
+        else showToast(data.error || 'Download failed', 'error');
+    } catch(e) {
+        showToast('Network error: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        if (btn.classList) btn.classList.remove('loading');
+        btn.innerHTML = orig;
+    }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg, type='info') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `show ${type}`;
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ── Custom sites: load / merge / save ─────────────────────────────────────────
+function mergeSites(defaults, customs) {
+    const overrideMap = new Map(customs.map(c => [c.url, c]));
+    const result = [];
+    for (const site of defaults) {
+        const c = overrideMap.get(site.url);
+        if (c && c._deleted) continue;
+        result.push(c ? Object.assign({}, site, c) : site);
+    }
+    const defUrls = new Set(defaults.map(s => s.url));
+    for (const c of customs) {
+        if (!defUrls.has(c.url) && !c._deleted) result.push(Object.assign({}, c));
+    }
+    return result;
+}
+
+function computeCustomSites() {
+    const defMap = new Map(DEFAULT_SITES.map(s => [s.url, s]));
+    const curMap = new Map(SITES.map(s => [s.url, s]));
+    const customs = [];
+    for (const site of SITES) {
+        const def = defMap.get(site.url);
+        if (!def) {
+            customs.push(Object.assign({}, site));
+        } else {
+            const allKeys = new Set([...Object.keys(site), ...Object.keys(def)]);
+            let changed = false, diff = {url: site.url};
+            for (const k of allKeys) { if (site[k] !== def[k]) { diff[k] = site[k]; changed = true; } }
+            if (changed) customs.push(diff);
+        }
+    }
+    for (const def of DEFAULT_SITES) {
+        if (!curMap.has(def.url)) customs.push({url: def.url, _deleted: true});
+    }
+    return customs;
+}
+
+async function loadCustomSites() {
+    try {
+        const res = await fetch(API_URL + '/sites/' + PAGE_KEY);
+        if (!res.ok) return;
+        const customs = await res.json();
+        SITES = mergeSites(DEFAULT_SITES, customs);
+        rebuildDomainSets();
+        render();
+        filterCards();
+    } catch(e) { /* use defaults */ }
+}
+
+async function saveCustomSites() {
+    const customs = computeCustomSites();
+    try {
+        await fetch(API_URL + '/sites/' + PAGE_KEY, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(customs)
+        });
+    } catch(e) { showToast('Save failed', 'error'); }
+}
+
+// ── Site manager modal ─────────────────────────────────────────────────────────
+let _mgrFilter = '';
+
+function openManager() {
+    _mgrFilter = '';
+    document.getElementById('mgr-search').value = '';
+    document.getElementById('add-cat').innerHTML = CATS.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+    renderManagerTable();
+    document.getElementById('manager-modal').classList.add('open');
+}
+function closeManager() {
+    document.getElementById('manager-modal').classList.remove('open');
+    document.getElementById('mgr-add-section').classList.remove('open');
+}
+
+function renderManagerTable() {
+    const tbody = document.getElementById('mgr-tbody');
+    const q = _mgrFilter.toLowerCase();
+    const defUrls = new Set(DEFAULT_SITES.map(s => s.url));
+    const filtered = SITES.filter(s => !q || s.name.toLowerCase().includes(q) || (s.url || '').toLowerCase().includes(q) || s.cat.toLowerCase().includes(q));
+
+    tbody.innerHTML = filtered.map((site, i) => {
+        const isCustom = !defUrls.has(site.url);
+        let hostname = site.url;
+        try { hostname = new URL(site.url).hostname.replace(/^www\./, ''); } catch {}
+        const catOpts = CATS.map(c => '<option value="' + c + '"' + (c === site.cat ? ' selected' : '') + '>' + c + '</option>').join('');
+        const customBadge = isCustom ? '<span class="mgr-custom-badge">custom</span>' : '';
+        return '<tr data-url="' + _esc(site.url) + '">'
+            + '<td><div class="mgr-icon-preview" style="background:' + (site.color||'#888') + '22;border:1px solid ' + (site.color||'#888') + '44"><i class="' + _esc(site.icon||'fas fa-globe') + '" style="color:' + (site.color||'#888') + '"></i></div></td>'
+            + '<td class="mgr-name">' + _esc(site.name) + customBadge + '</td>'
+            + '<td class="mgr-domain">' + _esc(hostname) + '</td>'
+            + '<td><select class="mgr-cat-select" onchange="changeSiteCat(\'' + _escq(site.url) + '\',this.value)">' + catOpts + '</select></td>'
+            + '<td><div style="display:flex;gap:.35rem"><button class="mgr-btn" onclick="openEditRow(\'' + _escq(site.url) + '\',' + i + ')" title="Edit"><i class="fas fa-pen"></i></button>'
+            + '<button class="mgr-btn danger" onclick="deleteSite(\'' + _escq(site.url) + '\')" title="Delete"><i class="fas fa-trash"></i></button></div></td>'
+            + '</tr>'
+            + '<tr class="mgr-edit-row" id="mgr-edit-' + i + '" style="display:none"><td colspan="5"><div class="mgr-edit-form">'
+            + '<div class="mgr-field"><label>Name</label><input id="ef-name-' + i + '" value="' + _esca(site.name) + '"></div>'
+            + '<div class="mgr-field"><label>URL</label><input id="ef-url-' + i + '" value="' + _esca(site.url) + '"></div>'
+            + '<div class="mgr-field"><label>Icon (Font Awesome class)</label><input id="ef-icon-' + i + '" value="' + _esca(site.icon||'') + '" placeholder="fab fa-youtube"></div>'
+            + '<div class="mgr-field"><label>Color</label><input type="color" id="ef-color-' + i + '" value="' + (site.color||'#888888') + '" style="height:34px;padding:2px 4px"></div>'
+            + '<div class="mgr-field mgr-full"><label>Description</label><input id="ef-desc-' + i + '" value="' + _esca(site.desc||'') + '"></div>'
+            + '<div class="mgr-field mgr-full"><label>Capabilities (comma-separated)</label><input id="ef-caps-' + i + '" value="' + _esca(site.caps||'') + '"></div>'
+            + '<div class="mgr-edit-btns"><button class="mgr-btn" onclick="cancelEdit(' + i + ')">Cancel</button>'
+            + '<button class="mgr-btn primary" onclick="saveEdit(\'' + _escq(site.url) + '\',' + i + ')"><i class="fas fa-save"></i> Save</button></div>'
+            + '</div></td></tr>';
+    }).join('');
+}
+
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _esca(s) { return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function _escq(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function changeSiteCat(url, newCat) {
+    const site = SITES.find(s => s.url === url);
+    if (!site) return;
+    site.cat = newCat;
+    saveCustomSites().then(() => { render(); filterCards(); showToast(site.name + ' → ' + newCat, 'success'); });
+}
+
+function openEditRow(url, i) {
+    const row = document.getElementById('mgr-edit-' + i);
+    if (!row) return;
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+function cancelEdit(i) { document.getElementById('mgr-edit-' + i).style.display = 'none'; }
+
+function saveEdit(oldUrl, i) {
+    const idx = SITES.findIndex(s => s.url === oldUrl);
+    if (idx === -1) return;
+    const site = SITES[idx];
+    const newUrl = document.getElementById('ef-url-' + i).value.trim();
+    site.name  = document.getElementById('ef-name-' + i).value.trim();
+    site.url   = newUrl || oldUrl;
+    site.icon  = document.getElementById('ef-icon-' + i).value.trim();
+    site.color = document.getElementById('ef-color-' + i).value;
+    site.desc  = document.getElementById('ef-desc-' + i).value.trim();
+    site.caps  = document.getElementById('ef-caps-' + i).value.trim();
+    SITES[idx] = site;
+    saveCustomSites().then(() => { rebuildDomainSets(); render(); filterCards(); renderManagerTable(); showToast('Saved!', 'success'); });
+}
+
+function deleteSite(url) {
+    const idx = SITES.findIndex(s => s.url === url);
+    if (idx === -1) return;
+    const name = SITES[idx].name;
+    SITES.splice(idx, 1);
+    saveCustomSites().then(() => { rebuildDomainSets(); render(); filterCards(); renderManagerTable(); showToast(name + ' removed', 'info'); });
+}
+
+function toggleAddForm() {
+    document.getElementById('mgr-add-section').classList.toggle('open');
+}
+
+function addNewSite() {
+    const name  = (document.getElementById('add-name').value || '').trim();
+    let   url   = (document.getElementById('add-url').value  || '').trim();
+    const cat   = document.getElementById('add-cat').value;
+    const icon  = (document.getElementById('add-icon').value || '').trim() || 'fas fa-globe';
+    const color = document.getElementById('add-color').value || '#888888';
+    const desc  = (document.getElementById('add-desc').value || '').trim();
+    const caps  = (document.getElementById('add-caps').value || '').trim();
+    if (!name || !url) { showToast('Name and URL are required', 'error'); return; }
+    if (!url.startsWith('http')) url = 'https://' + url;
+    if (SITES.some(s => s.url === url)) { showToast('A site with that URL already exists', 'error'); return; }
+    SITES.push({cat, name, url, icon, color, desc, caps});
+    saveCustomSites().then(() => {
+        rebuildDomainSets(); render(); filterCards(); renderManagerTable();
+        showToast(name + ' added to ' + cat, 'success');
+        ['add-name','add-url','add-icon','add-desc','add-caps'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById('add-color').value = '#888888';
+    });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+render();
+filterCards();
+loadCustomSites();
+
+// Set "All" button styling on load
+const allBtn = document.querySelector('[data-cat="all"]');
+if (allBtn) {
+    allBtn.style.background = '#FF9500';
+    allBtn.style.color = '#000';
+    allBtn.style.borderColor = '#FF9500';
+}
+
+// Allow Enter key in URL input
+document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') downloadUrl();
+});
+</script>
+</body>
+</html>

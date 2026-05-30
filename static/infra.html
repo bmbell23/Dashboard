@@ -432,14 +432,14 @@ function renderProblems(snap) {
     });
 
     (snap.drive_inventory || []).forEach(d => {
-        if (d.mounted === false) {
+        if (d.mounted === false && !d.transient) {
             problems.push(`${d.name} (${d.device}) is not mounted at ${d.mountpoint || 'n/a'}`);
         }
     });
 
     // Container issues
     (snap.containers || []).forEach(c => {
-        if (c.optional && (c.state === 'missing' || c.state === 'idle')) return; // disposable — not a problem when idle
+        if (c.optional && (c.state === 'missing' || c.state === 'idle' || c.state === 'stopped')) return; // transient — not a problem when idle/stopped
         if      (c.state === 'missing')    problems.push(`${c.label} — not found (container missing)`);
         else if (c.state === 'stopped')    problems.push(`${c.label} — stopped`);
         else if (c.health === 'unhealthy') problems.push(`${c.label} — running but health check failing`);

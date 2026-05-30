@@ -1,0 +1,14 @@
+{
+  "ytdlp": {
+    "adult_video":  "/mnt/boston/media/other/Videos/Full",
+    "adult_short":  "/mnt/boston/media/other/Videos/Short",
+    "video":        "/mnt/boston/media/videos/social",
+    "music":        "/mnt/boston/media/music",
+    "kids_video":   "/mnt/boston/media/kid-media/Videos",
+    "kids_audio":   "/mnt/boston/media/kid-media/Podcasts"
+  },
+  "gallery": {
+    "adult":        "/mnt/boston/media/other/Pictures",
+    "library":      "/mnt/boston/media/pictures/library/images"
+  }
+}
