@@ -867,40 +867,19 @@
     <div class="container">
         <h1><i class="fab fa-docker"></i> Docker Dashboard</h1>
 
-        <!-- News & Reading -->
+        <!-- Reading -->
         <div class="category">
-            <h2 class="category-title"><i class="fas fa-book-open"></i> News & Reading</h2>
+            <h2 class="category-title"><i class="fas fa-book-open"></i> Reading</h2>
             <div class="services">
                 <div class="service-card">
-                    <a href="http://100.69.184.113:8010" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-newspaper"></i>
-                            <span class="service-name">News</span>
-                        </div>
-                        <div class="service-description">News Aggregator & Reports</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8010</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('booknews')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('booknews')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8007" class="service-link" target="_blank">
+                    <a href="http://100.69.184.113:8092" class="service-link" target="_blank">
                         <div class="service-header">
                             <i class="service-icon fas fa-book"></i>
                             <span class="service-name">GreatReads</span>
                         </div>
                         <div class="service-description">Book Tracking</div>
                         <div class="service-footer">
-                            <div class="service-url">:8007</div>
+                            <div class="service-url">:8092</div>
                         </div>
                     </a>
                     <div class="service-actions">
@@ -908,6 +887,27 @@
                             <i class="fas fa-redo"></i> Restart
                         </button>
                         <button class="action-btn recreate-btn" onclick="recreateContainer('greatreads-prod')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8090" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-tablet-alt"></i>
+                            <span class="service-name">Ereader</span>
+                        </div>
+                        <div class="service-description">Ebook Reader</div>
+                        <div class="service-footer">
+                            <div class="service-url">:8090</div>
+                        </div>
+                    </a>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('ereader')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('ereader')">
                             <i class="fas fa-hammer"></i> Recreate
                         </button>
                     </div>
@@ -1082,6 +1082,27 @@
         <div class="category">
             <h2 class="category-title"><i class="fas fa-photo-video"></i> Media</h2>
             <div class="services">
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8010" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-newspaper"></i>
+                            <span class="service-name">NerdNews</span>
+                        </div>
+                        <div class="service-description">News Aggregator & Reports</div>
+                        <div class="service-footer">
+                            <div class="service-url">:8010</div>
+                        </div>
+                    </a>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('booknews')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('booknews')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
                 <div class="service-card">
                     <a href="http://100.69.184.113:2283" class="service-link" target="_blank">
                         <div class="service-header">

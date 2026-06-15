@@ -197,6 +197,54 @@
         .dl-checks input[type=checkbox] { accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; }
 
         /* ── Settings modal ── */
+        /* Convert modal */
+        .cv-step { display:block; font-size:0.78rem; color:var(--primary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem; font-weight:600; }
+        .cv-hint { color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400; margin-left:0.4rem; font-size:0.72rem; }
+        .cv-quick { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.5rem; }
+        .cv-quick-btn { background:transparent; border:1px solid #444; border-radius:2rem; color:var(--text); font-size:0.7rem; padding:0.25rem 0.65rem; cursor:pointer; transition:all 0.15s; }
+        .cv-quick-btn:hover { border-color:var(--primary); color:var(--primary); }
+        .cv-browser { border:1px solid #444; border-radius:0.4rem; overflow:hidden; }
+        .cv-bar { display:flex; align-items:center; gap:0.5rem; background:var(--mid-gray); padding:0.45rem 0.6rem; border-bottom:1px solid #444; }
+        .cv-up, .cv-use { background:transparent; border:1px solid #555; color:var(--text); border-radius:0.3rem; padding:0.2rem 0.5rem; font-size:0.75rem; cursor:pointer; flex-shrink:0; }
+        .cv-up:hover:not(:disabled), .cv-use:hover { border-color:var(--primary); color:var(--primary); }
+        .cv-up:disabled { opacity:0.35; cursor:default; }
+        .cv-path { font-size:0.7rem; color:var(--primary); word-break:break-all; flex:1; }
+        .cv-list { max-height:175px; overflow-y:auto; background:#141414; }
+        .cv-entry { display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0.75rem; font-size:0.8rem; cursor:pointer; border-bottom:1px solid #222; transition:background 0.1s; user-select:none; }
+        .cv-entry:last-child { border-bottom:none; }
+        .cv-entry:hover { background:#241c10; }
+        .cv-entry.in-cart { background:#2e2410; }
+        .cv-entry.in-cart .cv-name { color:var(--primary); }
+        .cv-entry i { width:1rem; text-align:center; flex-shrink:0; }
+        .cv-entry i.fa-folder { color:#FFB74D; }
+        .cv-entry i.fa-file-audio { color:var(--primary); }
+        .cv-entry i.fa-file-video { color:#64B5F6; }
+        .cv-entry i.fa-file { color:#aaa; }
+        .cv-name { flex:1; }
+        .cv-size { color:#666; font-size:0.7rem; flex-shrink:0; }
+        .cv-empty, .cv-loading { padding:1rem; text-align:center; color:#555; font-size:0.8rem; }
+        .cv-cart-header { display:flex; align-items:center; justify-content:space-between; margin-top:0.7rem; font-size:0.75rem; color:var(--text); }
+        .cv-exttag { color:var(--primary); font-weight:600; }
+        .cv-clear { background:transparent; border:none; color:#666; font-size:0.7rem; cursor:pointer; padding:0; }
+        .cv-clear:hover { color:#f44336; }
+        .cv-cart { border:1px solid #333; border-radius:0.4rem; background:#111; min-height:2.2rem; max-height:110px; overflow-y:auto; margin-top:0.35rem; }
+        .cv-cart-item { display:flex; align-items:center; gap:0.5rem; padding:0.35rem 0.75rem; font-size:0.78rem; color:var(--text); border-bottom:1px solid #1a1a1a; }
+        .cv-cart-item:last-child { border-bottom:none; }
+        .cv-cart-item i { color:var(--primary); flex-shrink:0; }
+        .cv-cart-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cv-cart-remove { background:transparent; border:none; color:#555; cursor:pointer; padding:0 0.2rem; font-size:0.75rem; flex-shrink:0; }
+        .cv-cart-remove:hover { color:#f44336; }
+        .cv-select { width:100%; background:var(--mid-gray); border:1px solid var(--border); color:var(--text); border-radius:0.4rem; padding:0.5rem 0.6rem; font-size:0.85rem; cursor:pointer; }
+        .cv-select:disabled { opacity:0.5; cursor:not-allowed; }
+        .cv-outsel { margin-top:0.5rem; font-size:0.78rem; color:var(--muted); padding:0.4rem 0.6rem; background:#111; border:1px solid #333; border-radius:0.4rem; word-break:break-all; }
+        .cv-outsel.set { color:var(--primary); border-color:var(--primary); }
+        .cv-progress { margin-top:1rem; border:1px solid var(--border); border-radius:0.5rem; padding:0.6rem 0.75rem; background:#111; max-height:200px; overflow-y:auto; }
+        .cv-prog-item { display:flex; align-items:center; gap:0.5rem; font-size:0.78rem; padding:0.25rem 0; color:var(--text); }
+        .cv-prog-item i { width:1rem; text-align:center; flex-shrink:0; }
+        .cv-prog-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .st-done { color:#6fcf6f; } .st-error { color:#cf6f6f; } .st-skip { color:var(--muted); }
+        .st-run { color:var(--primary); } .st-queue { color:#555; }
+
         .modal-overlay {
             display: none;
             position: fixed;
@@ -517,6 +565,9 @@
         <button class="btn-gear" onclick="openManager()" title="Manage sites" style="margin-left:0.25rem">
             <i class="fas fa-list"></i>
         </button>
+        <button class="btn-gear" onclick="openConvert()" title="Convert files (e.g. M4B → MP3)" style="margin-left:0.25rem">
+            <i class="fas fa-right-left"></i>
+        </button>
     </div>
 </header>
 
@@ -617,6 +668,69 @@
                 </thead>
                 <tbody id="mgr-tbody"></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Convert modal -->
+<div class="modal-overlay" id="convert-modal" onclick="if(event.target===this)closeConvert()">
+    <div class="modal" style="width:min(640px,96vw)">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-right-left"></i> Convert Files</span>
+            <button class="modal-close" onclick="closeConvert()"><i class="fas fa-times"></i></button>
+        </div>
+
+        <!-- Step 1: source files -->
+        <label class="cv-step">1 · Select files <span class="cv-hint">click to add · shift-click for a range</span></label>
+        <div class="cv-quick">
+            <button class="cv-quick-btn" onclick="cvBrowse('/mnt/boston/media/audiobooks')">audiobooks/</button>
+            <button class="cv-quick-btn" onclick="cvBrowse('/mnt/boston/media/music')">music/</button>
+            <button class="cv-quick-btn" onclick="cvBrowse('/mnt/boston/media')">media/</button>
+            <button class="cv-quick-btn" onclick="cvBrowse('/mnt/ssd250')">ssd250/</button>
+            <button class="cv-quick-btn" onclick="cvBrowse('/mnt/boston')">boston/</button>
+        </div>
+        <div class="cv-browser">
+            <div class="cv-bar">
+                <button class="cv-up" id="cv-up" onclick="cvUp()" disabled title="Go up"><i class="fas fa-arrow-up"></i></button>
+                <span class="cv-path" id="cv-path">—</span>
+            </div>
+            <div class="cv-list" id="cv-list"><div class="cv-empty">Pick a folder above to start browsing</div></div>
+        </div>
+
+        <div class="cv-cart-header">
+            <span>Selected (<span id="cv-count">0</span>) <span id="cv-exttag" class="cv-exttag"></span></span>
+            <button class="cv-clear" onclick="cvClear()">Clear all</button>
+        </div>
+        <div class="cv-cart" id="cv-cart"><div class="cv-empty">No files added yet</div></div>
+
+        <!-- Step 2: output format -->
+        <label class="cv-step" style="margin-top:1rem;">2 · Convert to</label>
+        <select id="cv-format" class="cv-select" onchange="cvUpdateStart()" disabled><option>Select files first</option></select>
+
+        <!-- Step 3: output folder -->
+        <label class="cv-step" style="margin-top:1rem;">3 · Output folder</label>
+        <div class="cv-quick">
+            <button class="cv-quick-btn" onclick="cvOutBrowse('/mnt/boston/media/audiobooks')">audiobooks/</button>
+            <button class="cv-quick-btn" onclick="cvOutBrowse('/mnt/boston/media/music')">music/</button>
+            <button class="cv-quick-btn" onclick="cvOutBrowse('/mnt/boston/media')">media/</button>
+            <button class="cv-quick-btn" onclick="cvOutBrowse('/mnt/ssd250')">ssd250/</button>
+        </div>
+        <div class="cv-browser">
+            <div class="cv-bar">
+                <button class="cv-up" id="cv-out-up" onclick="cvOutUp()" disabled title="Go up"><i class="fas fa-arrow-up"></i></button>
+                <span class="cv-path" id="cv-out-path">—</span>
+                <button class="cv-use" onclick="cvUseCurrentOut()" title="Use the folder shown here"><i class="fas fa-check"></i> Use this folder</button>
+            </div>
+            <div class="cv-list" id="cv-out-list"><div class="cv-empty">Pick a folder above to start browsing</div></div>
+        </div>
+        <div class="cv-outsel" id="cv-outsel">No output folder chosen</div>
+
+        <!-- Progress -->
+        <div class="cv-progress" id="cv-progress" style="display:none;"></div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeConvert()">Close</button>
+            <button class="btn-primary" id="cv-start" onclick="cvStart()" disabled><i class="fas fa-right-left"></i> Convert</button>
         </div>
     </div>
 </div>
@@ -1172,10 +1286,251 @@ function addNewSite() {
     });
 }
 
+// ── File conversion (M4B → MP3, etc.) ────────────────────────────────────────
+let _cvCart = [];        // [{path, name}]
+let _cvPath = null;      // input browser current dir
+let _cvLastIdx = null;
+let _cvOutPath = null;   // output browser current dir
+let _cvOutSel = null;    // chosen output folder
+let _cvSrcExt = null;    // common source extension
+let _cvTargetCache = {}; // ext -> [formats]
+let _cvPollTimer = null;
+
+function _cvFmtSize(b) {
+    if (b == null) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+    return (b/1073741824).toFixed(2) + ' GB';
+}
+function _cvIcon(e) {
+    if (e.is_dir) return 'fas fa-folder';
+    const ext = (e.name.split('.').pop() || '').toLowerCase();
+    const audio = ['mp3','m4b','m4a','ogg','flac','aac','opus','wav','wma','aiff','aif','ape','mka'];
+    const video = ['mp4','mkv','avi','mov','wmv','webm','m4v','ts','mpg','mpeg','flv'];
+    if (audio.includes(ext)) return 'fas fa-file-audio';
+    if (video.includes(ext)) return 'fas fa-file-video';
+    return 'fas fa-file';
+}
+function _cvParent(p) { return p.replace(/\/+$/,'').split('/').slice(0,-1).join('/') || '/'; }
+
+function openConvert() {
+    document.getElementById('convert-modal').classList.add('open');
+    cvClear();
+    _cvOutSel = null;
+    const out = document.getElementById('cv-outsel');
+    out.textContent = 'No output folder chosen'; out.classList.remove('set');
+    const prog = document.getElementById('cv-progress');
+    prog.style.display = 'none'; prog.innerHTML = '';
+    cvBrowse('/mnt/boston/media/audiobooks');
+    cvOutBrowse('/mnt/boston/media/audiobooks');
+}
+function closeConvert() {
+    document.getElementById('convert-modal').classList.remove('open');
+    if (_cvPollTimer) { clearTimeout(_cvPollTimer); _cvPollTimer = null; }
+}
+
+// ----- Input browser -----
+async function cvBrowse(path) {
+    _cvPath = path; _cvLastIdx = null;
+    const list = document.getElementById('cv-list');
+    document.getElementById('cv-path').textContent = path;
+    document.getElementById('cv-up').disabled = path === '/';
+    list.innerHTML = '<div class="cv-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+    try {
+        const r = await fetch(`${API_URL}/browse?path=${encodeURIComponent(path)}`);
+        const d = await r.json();
+        if (!r.ok) { list.innerHTML = `<div class="cv-empty">${d.error}</div>`; return; }
+        if (!d.entries.length) { list.innerHTML = '<div class="cv-empty">Empty directory</div>'; return; }
+        list.innerHTML = d.entries.map(e => {
+            const inCart = _cvCart.some(i => i.path === e.path) ? ' in-cart' : '';
+            const right = e.is_dir ? '' : `<span class="cv-size">${_cvFmtSize(e.size)}</span>`;
+            return `<div class="cv-entry${inCart}" data-path="${e.path.replace(/"/g,'&quot;')}" data-name="${e.name.replace(/"/g,'&quot;')}" data-isdir="${e.is_dir}">
+                <i class="${_cvIcon(e)}"></i><span class="cv-name">${e.name}</span>${right}</div>`;
+        }).join('');
+    } catch(err) { list.innerHTML = `<div class="cv-empty">Error: ${err.message}</div>`; }
+}
+function cvUp() { if (_cvPath) cvBrowse(_cvParent(_cvPath)); }
+
+// ----- Cart -----
+function cvAdd(path, name) { if (!_cvCart.some(i => i.path === path)) { _cvCart.push({path, name}); cvRenderCart(); } }
+function cvRemove(path) {
+    _cvCart = _cvCart.filter(i => i.path !== path);
+    cvRenderCart();
+    document.querySelectorAll('#cv-list .cv-entry').forEach(el => { if (el.dataset.path === path) el.classList.remove('in-cart'); });
+}
+function cvClear() {
+    _cvCart = []; cvRenderCart();
+    document.querySelectorAll('#cv-list .cv-entry.in-cart').forEach(el => el.classList.remove('in-cart'));
+}
+function cvRenderCart() {
+    const el = document.getElementById('cv-cart');
+    document.getElementById('cv-count').textContent = _cvCart.length;
+    if (!_cvCart.length) {
+        el.innerHTML = '<div class="cv-empty">No files added yet</div>';
+    } else {
+        el.innerHTML = _cvCart.map(i => `<div class="cv-cart-item"><i class="fas fa-file-audio"></i>
+            <span class="cv-cart-name" title="${i.path}">${i.name}</span>
+            <button class="cv-cart-remove" data-cv-remove="${i.path.replace(/"/g,'&quot;')}" title="Remove"><i class="fas fa-times"></i></button></div>`).join('');
+    }
+    cvUpdateFormats();
+}
+
+async function cvUpdateFormats() {
+    const sel = document.getElementById('cv-format');
+    const tag = document.getElementById('cv-exttag');
+    const exts = [...new Set(_cvCart.map(i => (i.name.split('.').pop() || '').toLowerCase()))];
+    if (!_cvCart.length) {
+        _cvSrcExt = null; tag.textContent = '';
+        sel.disabled = true; sel.innerHTML = '<option>Select files first</option>';
+        cvUpdateStart(); return;
+    }
+    if (exts.length > 1) {
+        _cvSrcExt = null; tag.textContent = '· ⚠ mixed filetypes';
+        sel.disabled = true; sel.innerHTML = '<option>Files must all be one filetype</option>';
+        cvUpdateStart(); return;
+    }
+    const ext = exts[0];
+    _cvSrcExt = ext;
+    tag.textContent = '· all .' + ext;
+    let targets = _cvTargetCache[ext];
+    if (!targets) {
+        try {
+            const r = await fetch(`${API_URL}/convert/targets?ext=${encodeURIComponent(ext)}`);
+            const d = await r.json();
+            targets = d.targets || [];
+            _cvTargetCache[ext] = targets;
+        } catch(e) { targets = []; }
+    }
+    if (!targets.length) {
+        sel.disabled = true; sel.innerHTML = `<option>.${ext} can't be converted</option>`;
+    } else {
+        sel.disabled = false;
+        sel.innerHTML = targets.map(f => `<option value="${f}">${f.toUpperCase()}</option>`).join('');
+    }
+    cvUpdateStart();
+}
+
+// ----- Output browser (folders only) -----
+async function cvOutBrowse(path) {
+    _cvOutPath = path;
+    const list = document.getElementById('cv-out-list');
+    document.getElementById('cv-out-path').textContent = path;
+    document.getElementById('cv-out-up').disabled = path === '/';
+    list.innerHTML = '<div class="cv-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+    try {
+        const r = await fetch(`${API_URL}/browse?path=${encodeURIComponent(path)}`);
+        const d = await r.json();
+        if (!r.ok) { list.innerHTML = `<div class="cv-empty">${d.error}</div>`; return; }
+        const dirs = d.entries.filter(e => e.is_dir);
+        if (!dirs.length) { list.innerHTML = '<div class="cv-empty">No subfolders — use “Use this folder” above</div>'; return; }
+        list.innerHTML = dirs.map(e =>
+            `<div class="cv-entry" data-out-path="${e.path.replace(/"/g,'&quot;')}"><i class="fas fa-folder"></i><span class="cv-name">${e.name}</span></div>`
+        ).join('');
+    } catch(err) { list.innerHTML = `<div class="cv-empty">Error: ${err.message}</div>`; }
+}
+function cvOutUp() { if (_cvOutPath) cvOutBrowse(_cvParent(_cvOutPath)); }
+function cvUseCurrentOut() {
+    if (!_cvOutPath) return;
+    _cvOutSel = _cvOutPath;
+    const el = document.getElementById('cv-outsel');
+    el.textContent = '→ ' + _cvOutSel; el.classList.add('set');
+    cvUpdateStart();
+}
+
+function cvUpdateStart() {
+    const sel = document.getElementById('cv-format');
+    const ok = _cvCart.length && _cvSrcExt && !sel.disabled && _cvOutSel;
+    document.getElementById('cv-start').disabled = !ok;
+}
+
+async function cvStart() {
+    const fmt = document.getElementById('cv-format').value;
+    if (!_cvCart.length || !fmt || !_cvOutSel) return;
+    const btn = document.getElementById('cv-start');
+    btn.disabled = true;
+    const payload = { files: _cvCart.map(i => i.path), format: fmt, output_dir: _cvOutSel };
+    try {
+        const r = await fetch(`${API_URL}/convert/start`, {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (!r.ok) { showToast(d.error || 'Failed to start', 'error'); btn.disabled = false; return; }
+        showToast(`Converting ${d.count} file(s) to ${fmt.toUpperCase()}…`, 'info');
+        cvPoll(d.job_id);
+    } catch(e) { showToast('Error: ' + e.message, 'error'); btn.disabled = false; }
+}
+
+function _cvStatusIcon(s) {
+    if (s === 'done')       return '<i class="fas fa-check-circle st-done"></i>';
+    if (s === 'error')      return '<i class="fas fa-times-circle st-error"></i>';
+    if (s === 'skipped')    return '<i class="fas fa-forward st-skip"></i>';
+    if (s === 'converting') return '<i class="fas fa-spinner fa-spin st-run"></i>';
+    return '<i class="fas fa-clock st-queue"></i>';
+}
+
+async function cvPoll(jobId) {
+    const prog = document.getElementById('cv-progress');
+    prog.style.display = 'block';
+    try {
+        const r = await fetch(`${API_URL}/convert/status?id=${encodeURIComponent(jobId)}`);
+        const job = await r.json();
+        if (!r.ok) { prog.innerHTML = `<div class="cv-empty">${job.error || 'Status error'}</div>`; return; }
+        prog.innerHTML = job.files.map(f => {
+            const note = f.status === 'error'   ? ` <span class="st-error">(${f.error || 'failed'})</span>`
+                       : f.status === 'skipped' ? ' <span class="st-skip">(already exists)</span>' : '';
+            return `<div class="cv-prog-item">${_cvStatusIcon(f.status)}<span class="cv-prog-name" title="${f.name}">${f.name}</span>${note}</div>`;
+        }).join('');
+        if (job.status === 'done') {
+            const done = job.files.filter(f=>f.status==='done').length;
+            const skip = job.files.filter(f=>f.status==='skipped').length;
+            const err  = job.files.filter(f=>f.status==='error').length;
+            let msg = `Done — ${done} converted`;
+            if (skip) msg += `, ${skip} skipped`;
+            if (err)  msg += `, ${err} failed`;
+            showToast(msg, err ? 'error' : 'success');
+            document.getElementById('cv-start').disabled = false;
+            _cvPollTimer = null;
+            return;
+        }
+        _cvPollTimer = setTimeout(() => cvPoll(jobId), 1500);
+    } catch(e) {
+        _cvPollTimer = setTimeout(() => cvPoll(jobId), 3000);
+    }
+}
+
+function cvInit() {
+    document.getElementById('cv-list').addEventListener('click', function(e) {
+        const entry = e.target.closest('.cv-entry');
+        if (!entry) return;
+        const path = entry.dataset.path, name = entry.dataset.name;
+        if (entry.dataset.isdir === 'true') { cvBrowse(path); return; }
+        const all = [...this.querySelectorAll('.cv-entry[data-isdir="false"]')];
+        const idx = all.indexOf(entry);
+        if (e.shiftKey && _cvLastIdx !== null) {
+            const a = Math.min(_cvLastIdx, idx), b = Math.max(_cvLastIdx, idx);
+            for (let i=a;i<=b;i++){ const el=all[i]; if(!_cvCart.some(c=>c.path===el.dataset.path)){ cvAdd(el.dataset.path, el.dataset.name); el.classList.add('in-cart'); } }
+        } else {
+            if (_cvCart.some(c=>c.path===path)) { cvRemove(path); entry.classList.remove('in-cart'); }
+            else { cvAdd(path, name); entry.classList.add('in-cart'); }
+            _cvLastIdx = idx;
+        }
+    });
+    document.getElementById('cv-cart').addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-cv-remove]');
+        if (btn) cvRemove(btn.dataset.cvRemove);
+    });
+    document.getElementById('cv-out-list').addEventListener('click', function(e) {
+        const entry = e.target.closest('[data-out-path]');
+        if (entry) cvOutBrowse(entry.dataset.outPath);
+    });
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 render();
 filterCards();
 loadCustomSites();
+cvInit();
 document.getElementById('search').addEventListener('input', filterCards);
 document.getElementById('url-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') downloadUrl();

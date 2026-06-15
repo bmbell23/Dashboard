@@ -46,7 +46,7 @@ Legend:
 | dashboard | 8001 | External | Path | /dashboard | Good | 1 | Keep dashboard available even during migration.
 | vaultwarden | 8222 | External | Root | / (existing) or /vault | Prefer root | 1 | Already working on ts.net over 443.
 | booknews | 8010 | External | Path | /news | Good | 2 | Basic web app.
-| greatreads_app | 8007 | External | Path | /greatreads | Good | 2 | Basic web app.
+| greatreads_app | 8092 | External | Path | /greatreads | Good | 2 | Basic web app.
 | audiobookshelf | 13378 | External | Path | /audiobookshelf | Usually good | 2 | Verify websocket endpoints after cutover.
 | calibre | 8084 | External | Path | /calibre | Mixed | 3 | UI may need base URL handling.
 | libby-web | 5007 | External | Path | /libby | Good | 2 | Basic web app.

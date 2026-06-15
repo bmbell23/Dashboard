@@ -83,6 +83,7 @@ CONTAINERS = {
 
     # Reading
     'greatreads-prod': {'name': 'greatreads_app', 'service': 'greatreads', 'compose_dir': '/home/brandon/projects/GreatReads'},
+    'ereader': {'name': 'ereader', 'service': 'ereader', 'compose_dir': '/home/brandon/projects/Ereader'},
     'booknews': {'name': 'booknews', 'service': 'booknews', 'compose_dir': '/home/brandon/projects/NerdNews'},
     'kidmedia': {'name': 'kidmedia', 'service': 'kidmedia', 'compose_dir': '/home/brandon/projects/KidMedia'},
     'calibre': {'name': 'calibre', 'service': 'calibre', 'compose_dir': 'calibre'},
@@ -2981,8 +2982,8 @@ CF_TUNNEL_HOSTNAME = os.environ.get('CF_TUNNEL_HOSTNAME', '').strip()
 
 def _get_tunnel_url():
     """Return the tunnel URL — stable hostname if using a named tunnel, else scrape logs."""
-    if CF_TUNNEL_HOSTNAME:
-        return f'http://{CF_TUNNEL_HOSTNAME}'
+    if CF_TUNNEL_TOKEN and CF_TUNNEL_HOSTNAME:
+        return f'https://{CF_TUNNEL_HOSTNAME}'
     try:
         logs = subprocess.run(
             ['docker', 'logs', 'fileshare-cloudflared'],
@@ -3025,6 +3026,187 @@ def browse():
         return jsonify({'error': 'Permission denied'}), 403
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ── Media conversion (ffmpeg, run inside the yt-dlp-web image) ────────────────
+# The dashboard container has the media mounted read-only and no ffmpeg, so —
+# exactly like the yt-dlp downloads — conversion runs in a throwaway container
+# spun from the yt-dlp-web image (ffmpeg 6.x). Each job mounts the source file's
+# folder read-only and the chosen output folder read-write, as uid 1000 so the
+# output is owned by brandon.
+
+CONVERT_IMAGE = 'yt-dlp-web:local'
+CONVERT_USER  = '1000:1000'
+
+_AUDIO_EXTS = {'m4b', 'm4a', 'mp3', 'aac', 'flac', 'wav', 'ogg', 'opus', 'wma',
+               'aiff', 'aif', 'ape', 'mka', 'wv', 'mp2'}
+_VIDEO_EXTS = {'mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'flv', 'm4v', 'ts',
+               'mpg', 'mpeg', '3gp', 'ogv'}
+
+# Output formats offered for each input category (source ext is removed below).
+_CONVERT_AUDIO_OUT = ['mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg', 'opus']
+_CONVERT_VIDEO_OUT = ['mp4', 'mkv', 'webm', 'mp3', 'm4a', 'aac']
+
+# ffmpeg encoder args per output format ('-map_metadata 0' is added separately).
+_FFMPEG_ARGS = {
+    'mp3':  ['-vn', '-c:a', 'libmp3lame', '-q:a', '2', '-id3v2_version', '3'],
+    'm4a':  ['-vn', '-c:a', 'aac', '-b:a', '256k'],
+    'aac':  ['-vn', '-c:a', 'aac', '-b:a', '256k'],
+    'flac': ['-vn', '-c:a', 'flac'],
+    'wav':  ['-vn', '-c:a', 'pcm_s16le'],
+    'ogg':  ['-vn', '-c:a', 'libvorbis', '-q:a', '5'],
+    'opus': ['-vn', '-c:a', 'libopus', '-b:a', '160k'],
+    'mp4':  ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k'],
+    'mkv':  ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k'],
+    'webm': ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-c:a', 'libopus'],
+}
+
+_convert_jobs = {}
+_convert_lock = threading.Lock()
+
+
+def _convert_targets(ext):
+    """Allowed output formats for a given source extension."""
+    ext = ext.lower().lstrip('.')
+    if ext in _AUDIO_EXTS:
+        opts = _CONVERT_AUDIO_OUT
+    elif ext in _VIDEO_EXTS:
+        opts = _CONVERT_VIDEO_OUT
+    else:
+        return []
+    return [f for f in opts if f != ext]
+
+
+@app.route('/api/convert/targets')
+def convert_targets():
+    """Given a source extension, return the formats it can be converted to."""
+    ext = request.args.get('ext', '').lower().lstrip('.')
+    return jsonify({'ext': ext, 'targets': _convert_targets(ext)})
+
+
+def _run_convert_job(job_id):
+    """Background worker: convert each file in the job sequentially via ffmpeg."""
+    job = _convert_jobs[job_id]
+    out_dir  = job['output_dir']
+    out_fmt  = job['format']
+    enc_args = _FFMPEG_ARGS[out_fmt]
+
+    for item in job['files']:
+        src = item['src']
+        with _convert_lock:
+            item['status'] = 'converting'
+            job['current'] = item['name']
+
+        src_dir  = os.path.dirname(src)
+        src_name = os.path.basename(src)
+        out_name = f"{os.path.splitext(src_name)[0]}.{out_fmt}"
+        out_path = os.path.join(out_dir, out_name)
+
+        # Don't clobber an existing output — skip it instead.
+        if os.path.exists(out_path):
+            with _convert_lock:
+                item['status'] = 'skipped'
+                item['output'] = out_path
+            continue
+
+        cmd = [
+            'docker', 'run', '--rm', '--user', CONVERT_USER, '--entrypoint', 'ffmpeg',
+            '-v', f'{src_dir}:/in:ro',
+            '-v', f'{out_dir}:/out',
+            CONVERT_IMAGE,
+            '-hide_banner', '-y', '-i', f'/in/{src_name}',
+            '-map_metadata', '0', *enc_args, f'/out/{out_name}',
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+            if result.returncode == 0:
+                with _convert_lock:
+                    item['status'] = 'done'
+                    item['output'] = out_path
+            else:
+                lines = (result.stderr or result.stdout or 'Unknown error').strip().splitlines()
+                with _convert_lock:
+                    item['status'] = 'error'
+                    item['error']  = lines[-1] if lines else 'Conversion failed'
+                logger.error(f"convert {job_id}: failed for {src}: {item['error']}")
+        except subprocess.TimeoutExpired:
+            with _convert_lock:
+                item['status'] = 'error'
+                item['error']  = 'Timed out (max 2h)'
+        except Exception as e:
+            with _convert_lock:
+                item['status'] = 'error'
+                item['error']  = str(e)
+            logger.error(f"convert {job_id}: error for {src}: {e}")
+
+    with _convert_lock:
+        job['status']  = 'done'
+        job['current'] = None
+    logger.info(f"convert {job_id}: finished")
+
+
+@app.route('/api/convert/start', methods=['POST'])
+def convert_start():
+    """Start a media conversion job.
+
+    Body: { files: [host paths], format: 'mp3', output_dir: '/host/folder' }
+    All files must share one source extension that supports the target format.
+    Returns { job_id } immediately; poll /api/convert/status?id=<job_id>.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'JSON body required'}), 400
+
+    files   = data.get('files') or []
+    out_fmt = (data.get('format') or '').lower().lstrip('.')
+    out_dir = (data.get('output_dir') or '').rstrip('/')
+
+    if not files:
+        return jsonify({'error': 'No files selected'}), 400
+    if not out_dir or not os.path.isdir(out_dir):
+        return jsonify({'error': 'Output folder is not a valid directory'}), 400
+    if out_fmt not in _FFMPEG_ARGS:
+        return jsonify({'error': f'Unsupported output format: {out_fmt}'}), 400
+
+    exts = set()
+    for f in files:
+        if not os.path.isfile(f):
+            return jsonify({'error': f'File not found: {f}'}), 400
+        exts.add(os.path.splitext(f)[1].lower().lstrip('.'))
+    if len(exts) != 1:
+        return jsonify({'error': 'All selected files must be the same filetype'}), 400
+
+    src_ext = next(iter(exts))
+    if out_fmt not in _convert_targets(src_ext):
+        return jsonify({'error': f'.{src_ext} cannot be converted to .{out_fmt}'}), 400
+
+    job_id = uuid.uuid4().hex[:12]
+    job = {
+        'id':         job_id,
+        'format':     out_fmt,
+        'output_dir': out_dir,
+        'status':     'running',
+        'current':    None,
+        'files': [{'src': f, 'name': os.path.basename(f),
+                   'status': 'queued', 'error': None, 'output': None} for f in files],
+    }
+    with _convert_lock:
+        _convert_jobs[job_id] = job
+    threading.Thread(target=_run_convert_job, args=(job_id,), daemon=True,
+                     name=f'convert-{job_id}').start()
+    logger.info(f"convert {job_id}: {len(files)} x .{src_ext} -> .{out_fmt} into {out_dir}")
+    return jsonify({'job_id': job_id, 'count': len(files)})
+
+
+@app.route('/api/convert/status')
+def convert_status():
+    """Return a snapshot of a conversion job's progress."""
+    job_id = request.args.get('id', '')
+    with _convert_lock:
+        job = _convert_jobs.get(job_id)
+        if not job:
+            return jsonify({'error': 'Unknown job'}), 404
+        return jsonify(json.loads(json.dumps(job)))
 
 
 @app.route('/api/share/start', methods=['POST'])
@@ -3072,8 +3254,8 @@ def share_start():
             return jsonify({'error': r.stderr}), 500
 
         # Named tunnel URL is known immediately; Quick Tunnel needs log polling
-        if CF_TUNNEL_HOSTNAME:
-            url = f'http://{CF_TUNNEL_HOSTNAME}'
+        if CF_TUNNEL_TOKEN and CF_TUNNEL_HOSTNAME:
+            url = f'https://{CF_TUNNEL_HOSTNAME}'
             # Brief wait for tunnel to come up before returning
             time.sleep(3)
         else:

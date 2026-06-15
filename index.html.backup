@@ -256,13 +256,13 @@
         <div class="category">
             <h2 class="category-title">📖 Reading</h2>
             <div class="services">
-                <a href="http://100.123.154.40:8007" class="service-card" target="_blank">
+                <a href="http://100.123.154.40:8092" class="service-card" target="_blank">
                     <div class="service-header">
                         <span class="service-icon">📚</span>
                         <span class="service-name">GreatReads (Prod)</span>
                     </div>
                     <div class="service-description">Book Tracking - Production</div>
-                    <div class="service-url">:8007</div>
+                    <div class="service-url">:8092</div>
                 </a>
 
                 <a href="http://100.123.154.40:8008" class="service-card" target="_blank">
