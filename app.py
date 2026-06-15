@@ -82,7 +82,7 @@ CONTAINERS = {
     'codeforge': {'name': 'codeforge_app', 'service': 'codeforge', 'compose_dir': '/home/brandon/projects/CodeForge'},
 
     # Reading
-    'greatreads-prod': {'name': 'greatreads_app', 'service': 'greatreads', 'compose_dir': '/home/brandon/projects/GreatReads'},
+    'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
     'ereader': {'name': 'ereader', 'service': 'ereader', 'compose_dir': '/home/brandon/projects/Ereader'},
     'booknews': {'name': 'booknews', 'service': 'booknews', 'compose_dir': '/home/brandon/projects/NerdNews'},
     'kidmedia': {'name': 'kidmedia', 'service': 'kidmedia', 'compose_dir': '/home/brandon/projects/KidMedia'},
@@ -110,7 +110,7 @@ DB_PATH = '/app/data/metrics.db'
 # Every container we want to track on the health page (actual docker name → display info)
 MONITORED_CONTAINERS = [
     {'name': 'booknews',       'label': 'NerdNews',       'category': 'Apps'},
-    {'name': 'greatreads_app', 'label': 'GreatReads',     'category': 'Apps'},
+    {'name': 'greatreads_ereader', 'label': 'GreatReads',     'category': 'Apps'},
     {'name': 'audiobookshelf', 'label': 'Audiobookshelf', 'category': 'Apps'},
     {'name': 'calibre',        'label': 'Calibre',        'category': 'Apps'},
     {'name': 'libby-web',      'label': 'Libby Browser',  'category': 'Apps'},
@@ -2020,11 +2020,15 @@ def recreate_container(service_id):
     compose_dir = CONTAINERS[service_id]['compose_dir']
     container_name = CONTAINERS[service_id]['name']
     service_name = CONTAINERS[service_id]['service']
+    compose_file = CONTAINERS[service_id].get('compose_file')
 
     try:
         logger.info(f"Recreating container: {container_name} (service: {service_name}) in {compose_dir}")
+        compose_cmd = ['docker', 'compose']
+        if compose_file:
+            compose_cmd += ['-f', compose_file]
         result = subprocess.run(
-            ['docker', 'compose', 'up', '-d', '--force-recreate', service_name],
+            compose_cmd + ['up', '-d', '--force-recreate', service_name],
             cwd=compose_dir if compose_dir.startswith('/') else f'/home/brandon/projects/docker/{compose_dir}',
             capture_output=True,
             text=True,
