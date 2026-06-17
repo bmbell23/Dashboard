@@ -83,7 +83,6 @@ CONTAINERS = {
 
     # Reading
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
-    'ereader': {'name': 'ereader', 'service': 'ereader', 'compose_dir': '/home/brandon/projects/Ereader'},
     'booknews': {'name': 'booknews', 'service': 'booknews', 'compose_dir': '/home/brandon/projects/NerdNews'},
     'kidmedia': {'name': 'kidmedia', 'service': 'kidmedia', 'compose_dir': '/home/brandon/projects/KidMedia'},
     'calibre': {'name': 'calibre', 'service': 'calibre', 'compose_dir': 'calibre'},
