@@ -85,6 +85,7 @@ CONTAINERS = {
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
     'booknews': {'name': 'booknews', 'service': 'booknews', 'compose_dir': '/home/brandon/projects/NerdNews'},
     'kidmedia': {'name': 'kidmedia', 'service': 'kidmedia', 'compose_dir': '/home/brandon/projects/KidMedia'},
+    'chess': {'name': 'chess_app', 'service': 'chess', 'compose_dir': '/home/brandon/projects/Chess'},
     'calibre': {'name': 'calibre', 'service': 'calibre', 'compose_dir': 'calibre'},
     'libby-web': {'name': 'libby-web', 'service': 'libby-web', 'compose_dir': 'libby-web'},
 
@@ -118,6 +119,7 @@ MONITORED_CONTAINERS = [
     {'name': 'wordforge',      'label': 'WordForge',      'category': 'Apps'},
     {'name': 'codeforge_app',  'label': 'CodeForge',      'category': 'Apps'},
     {'name': 'kidmedia',       'label': 'KidMedia',       'category': 'Apps'},
+    {'name': 'chess_app',      'label': 'Chess Stats',    'category': 'Apps'},
     {'name': 'immich',         'label': 'Immich',         'category': 'Media'},
     {'name': 'immich-db',      'label': 'Immich DB',      'category': 'Media'},
     {'name': 'jellyfin',       'label': 'Jellyfin',       'category': 'Media'},
