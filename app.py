@@ -79,7 +79,6 @@ CONTAINERS = {
     'lifeforge': {'name': 'lifeforge_app', 'service': 'lifeforge', 'compose_dir': '/home/brandon/projects/LifeForge'},
     'artforge': {'name': 'artforge', 'service': 'artforge', 'compose_dir': '/home/brandon/projects/ArtForge'},
     'wordforge': {'name': 'wordforge', 'service': 'wordforge', 'compose_dir': '/home/brandon/projects/WordForge'},
-    'codeforge': {'name': 'codeforge_app', 'service': 'codeforge', 'compose_dir': '/home/brandon/projects/CodeForge'},
 
     # Reading
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
@@ -98,6 +97,7 @@ CONTAINERS = {
 
     # Infrastructure
     'jenkins': {'name': 'jenkins', 'service': 'jenkins', 'compose_dir': 'jenkins'},
+    'pihole': {'name': 'pihole', 'service': 'pihole', 'compose_dir': 'pihole'},
 }
 
 # =============================================================================
@@ -117,7 +117,6 @@ MONITORED_CONTAINERS = [
     {'name': 'lifeforge_app',  'label': 'LifeForge',      'category': 'Apps'},
     {'name': 'artforge',       'label': 'ArtForge',       'category': 'Apps'},
     {'name': 'wordforge',      'label': 'WordForge',      'category': 'Apps'},
-    {'name': 'codeforge_app',  'label': 'CodeForge',      'category': 'Apps'},
     {'name': 'kidmedia',       'label': 'KidMedia',       'category': 'Apps'},
     {'name': 'chess_app',      'label': 'Chess Stats',    'category': 'Apps'},
     {'name': 'immich',         'label': 'Immich',         'category': 'Media'},
@@ -139,6 +138,7 @@ MONITORED_CONTAINERS = [
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
     {'name': 'jenkins',       'label': 'Jenkins',       'category': 'Infrastructure'},
+    {'name': 'pihole',         'label': 'Pi-hole',        'category': 'Infrastructure'},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
     {'name': 'dashboard',      'label': 'Dashboard',      'category': 'Infrastructure'},
 ]
@@ -146,7 +146,8 @@ MONITORED_CONTAINERS = [
 THRESHOLDS = {
     'cpu':         {'warn': 85, 'crit': 95},
     'ram':         {'warn': 85, 'crit': 95},
-    'swap':        {'warn': 50, 'crit': 75},
+    # vm.swappiness=80 on this host, so steady-state swap use is expected and healthy.
+    'swap':        {'warn': 80, 'crit': 92},
     'docker_disk': {'warn': 75, 'crit': 85},
     'ssd250_disk': {'warn': 85, 'crit': 93},
     'nas_disk':    {'warn': 85, 'crit': 93},
@@ -201,7 +202,8 @@ DRIVE_LAYOUT = [
         'category': 'external',
         'mountpoint': '/mnt/allston',
         'size_gb_hint': 1800,
-        'purpose': 'Proxmox ISO/image storage',
+        'purpose': 'Proxmox ISO/image storage (currently unplugged)',
+        'transient': True,
     },
     {
         'id': 'external_disk',
@@ -210,7 +212,8 @@ DRIVE_LAYOUT = [
         'category': 'external',
         'mountpoint': '/mnt/external',
         'size_gb_hint': 1800,
-        'purpose': 'Personal files and media',
+        'purpose': 'Personal files and media (currently unplugged)',
+        'transient': True,
     },
     {
         'id': 'flash_disk',
@@ -1899,6 +1902,20 @@ def _collect() -> dict:
         backups = remote_disks['backups_disk']
     if remote_disks.get('external_disk'):
         external = remote_disks['external_disk']
+
+    # Compose bind-mounts /mnt/{backups,external,ssd250} into this container. When the drive
+    # is not actually mounted, Docker still creates the directory, so it resolves to the host
+    # root filesystem and _read_disk reports *its* usage as the drive's (e.g. an unplugged
+    # external showing 86%). drive_inventory (df over SSH on Proxmox) is authoritative about
+    # what is really mounted, so blank those readings out instead of trusting the local stat.
+    unmounted = {d['id'] for d in drive_inventory if d.get('mounted') is False}
+    blank = lambda: {'used_gb': 0, 'total_gb': 0, 'pct': 0}
+    if 'ssd250_disk' in unmounted:
+        ssd250 = blank()
+    if 'backups_disk' in unmounted:
+        backups = blank()
+    if 'external_disk' in unmounted:
+        external = blank()
 
     ram_pct  = int(mem['ram_used_mb']  / mem['ram_total_mb']  * 100) if mem['ram_total_mb']  else 0
     swap_pct = int(mem['swap_used_mb'] / mem['swap_total_mb'] * 100) if mem['swap_total_mb'] else 0

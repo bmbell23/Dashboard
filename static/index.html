@@ -424,6 +424,24 @@
             color: var(--black);
         }
 
+        .apk-btn {
+            flex: 0 0 auto;
+            background-color: transparent;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+            padding: 0.5rem 0.65rem;
+            text-decoration: none;
+        }
+
+        .apk-btn:hover {
+            background-color: #4CAF50;
+            color: var(--black);
+        }
+
+        .apk-btn i {
+            font-size: 0.85rem;
+        }
+
         .share-btn {
             background-color: transparent;
             color: #9C27B0;
@@ -889,6 +907,9 @@
                         <button class="action-btn recreate-btn" onclick="recreateContainer('greatreads-prod')">
                             <i class="fas fa-hammer"></i> Recreate
                         </button>
+                        <a class="action-btn apk-btn" href="http://100.69.184.113:8090/ereader.apk" title="Download Android APK">
+                            <i class="fas fa-download"></i>
+                        </a>
                     </div>
                 </div>
 
@@ -1010,6 +1031,9 @@
                         <button class="action-btn recreate-btn" onclick="recreateContainer('lifeforge')">
                             <i class="fas fa-hammer"></i> Recreate
                         </button>
+                        <a class="action-btn apk-btn" href="http://100.69.184.113:8004/download/lifeforge.apk" title="Download Android APK">
+                            <i class="fas fa-download"></i>
+                        </a>
                     </div>
                 </div>
 
@@ -1050,27 +1074,6 @@
                             <i class="fas fa-redo"></i> Restart
                         </button>
                         <button class="action-btn recreate-btn" onclick="recreateContainer('wordforge')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8005" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-code"></i>
-                            <span class="service-name">CodeForge</span>
-                        </div>
-                        <div class="service-description">Web-based IDE with AI</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8005</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('codeforge')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('codeforge')">
                             <i class="fas fa-hammer"></i> Recreate
                         </button>
                     </div>
@@ -1426,6 +1429,27 @@
                             <i class="fas fa-redo"></i> Restart
                         </button>
                         <button class="action-btn recreate-btn" onclick="recreateContainer('vaultwarden')">
+                            <i class="fas fa-hammer"></i> Recreate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <a href="http://100.69.184.113:8053/admin" class="service-link" target="_blank">
+                        <div class="service-header">
+                            <i class="service-icon fas fa-hand"></i>
+                            <span class="service-name">Pi-hole</span>
+                        </div>
+                        <div class="service-description">Network-wide Ad & Site Blocking (DNS)</div>
+                        <div class="service-footer">
+                            <div class="service-url">:8053</div>
+                        </div>
+                    </a>
+                    <div class="service-actions">
+                        <button class="action-btn restart-btn" onclick="restartContainer('pihole')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="action-btn recreate-btn" onclick="recreateContainer('pihole')">
                             <i class="fas fa-hammer"></i> Recreate
                         </button>
                     </div>
