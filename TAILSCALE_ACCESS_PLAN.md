@@ -54,7 +54,7 @@ Legend:
 | artforge | 8003 | External | Path | /artforge | Good | 2 | Basic web app.
 | wordforge | 8002 | External | Path | /wordforge | Good | 2 | Basic web app.
 | codeforge_app | 8005 | External | Path | /codeforge | Mixed | 3 | IDE-style apps often need websocket and prefix checks.
-| kidmedia | 8006 | External | Path | /kidmedia | Good | 2 | Basic web app.
+| funforge | 8006 | External | Path | /funforge | Good | 2 | Basic web app.
 | immich | 2283 | External | Path | /immich | Mixed | 3 | May require app base URL settings.
 | jellyfin | 8096 | External | Path | /jellyfin | Mixed | 3 | Usually needs base URL set to /jellyfin.
 | romm | 8080 | External | Path | /romm | Mixed | 3 | Confirm static asset paths.
@@ -94,7 +94,7 @@ Migrate apps with expected good subpath behavior:
 - /lifeforge
 - /artforge
 - /wordforge
-- /kidmedia
+- /funforge
 - /dictionary
 
 For each app:
