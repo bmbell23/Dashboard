@@ -89,6 +89,7 @@ CONTAINERS = {
     'libby-web': {'name': 'libby-web', 'service': 'libby-web', 'compose_dir': 'libby-web'},
 
     # Tools
+    'office': {'name': 'agentbus_mattermost', 'service': 'mattermost', 'compose_dir': '/home/brandon/projects/agent-bus'},
     'stash': {'name': 'stash', 'service': 'stash', 'compose_dir': 'stash'},
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
     'dictionary': {'name': 'dictionary-api', 'service': 'dictionary-api', 'compose_dir': 'dictionary'},
@@ -130,6 +131,8 @@ MONITORED_CONTAINERS = [
     {'name': 'yt-dlp-web',     'label': 'YT-DLP',         'category': 'Downloads'},
     {'name': 'deemix',         'label': 'Deemix',         'category': 'Downloads'},
     {'name': 'gallery-dl',     'label': 'Gallery-DL',     'category': 'Downloads'},
+    {'name': 'agentbus_mattermost', 'label': 'Office (Mattermost)', 'category': 'Tools'},
+    {'name': 'agentbus_postgres',   'label': 'Office DB',          'category': 'Tools'},
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
     {'name': 'dictionary-api', 'label': 'Dictionary',     'category': 'Tools'},
