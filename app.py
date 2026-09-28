@@ -17,9 +17,10 @@ import time
 import shutil
 import glob
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from croniter import croniter
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__, static_folder='static')
 CORS(app)  # Enable CORS for frontend requests
@@ -56,9 +57,12 @@ def save_paths(data):
     with open(_PATHS_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-JENKINS_URL = os.environ.get('JENKINS_URL', 'http://100.69.184.113:8880').rstrip('/')
-JENKINS_API_USER = os.environ.get('JENKINS_API_USER', '').strip()
-JENKINS_API_TOKEN = os.environ.get('JENKINS_API_TOKEN', '').strip()
+# Dagu (scheduled jobs). Links use the Tailscale URL; the health probe uses
+# localhost because curling the Tailscale IP from the server itself times out.
+DAGU_URL = os.environ.get('DAGU_URL', 'http://100.69.184.113:8014').rstrip('/')
+DAGU_API_URL = os.environ.get('DAGU_API_URL', 'http://localhost:8014').rstrip('/')
+DAGU_HOME = os.environ.get('DAGU_HOME', '/home/brandon/projects/docker/dagu')
+DAGU_TZ = ZoneInfo(os.environ.get('DAGU_TZ', 'America/Denver'))  # schedules fire in Dagu's tz
 
 # Container mappings: service_id -> {container_name, compose_dir, service (compose service name)}
 CONTAINERS = {
@@ -97,7 +101,7 @@ CONTAINERS = {
     'pokevault': {'name': 'pokevault', 'service': 'web', 'compose_dir': '/home/brandon/projects/PokeVault'},
 
     # Infrastructure
-    'jenkins': {'name': 'jenkins', 'service': 'jenkins', 'compose_dir': 'jenkins'},
+    'dagu': {'name': 'dagu', 'service': 'dagu', 'compose_dir': 'dagu'},
     'pihole': {'name': 'pihole', 'service': 'pihole', 'compose_dir': 'pihole'},
 }
 
@@ -140,7 +144,7 @@ MONITORED_CONTAINERS = [
     {'name': 'pokevault',      'label': 'PokeVault',      'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
-    {'name': 'jenkins',       'label': 'Jenkins',       'category': 'Infrastructure'},
+    {'name': 'dagu',           'label': 'Dagu',           'category': 'Infrastructure'},
     {'name': 'pihole',         'label': 'Pi-hole',        'category': 'Infrastructure'},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
     {'name': 'dashboard',      'label': 'Dashboard',      'category': 'Infrastructure'},
@@ -233,7 +237,7 @@ DRIVE_LAYOUT = [
 PROJECTS_ROOT = '/home/brandon/projects'
 
 AUTOMATION_CONTAINERS = [
-    'dashboard', 'libby-web', 'mullvad-vpn', 'jenkins'
+    'dashboard', 'libby-web', 'mullvad-vpn', 'dagu'
 ]
 
 BACKUP_JOB_DEFS = [
@@ -2904,75 +2908,153 @@ def infra_extended():
     return jsonify(snap)
 
 
-@app.route('/api/jenkins/status')
-def jenkins_status():
-    """Return Jenkins connectivity and lightweight queue/job status."""
-    auth = None
-    if JENKINS_API_USER and JENKINS_API_TOKEN:
-        auth = (JENKINS_API_USER, JENKINS_API_TOKEN)
+# Dagu status codes (core.Status) -> label / severity
+_DAGU_STATUS = {
+    0: ('not started', 'warn'),
+    1: ('running', 'ok'),
+    2: ('failed', 'crit'),
+    3: ('aborted', 'warn'),
+    4: ('succeeded', 'ok'),
+    5: ('queued', 'ok'),
+    6: ('partial success', 'warn'),
+    7: ('waiting', 'ok'),
+    8: ('rejected', 'crit'),
+}
 
+
+def _dagu_top_level(text, key):
+    """Pull a top-level scalar out of a DAG yaml without a yaml dependency."""
+    m = re.search(rf'^{key}:\s*(.+?)\s*$', text, re.M)
+    if not m:
+        return None
+    return m.group(1).strip().strip('"\'') or None
+
+
+def _dagu_latest_run(name):
+    """Return the last line of the newest status.jsonl for a DAG, or None."""
+    runs_dir = os.path.join(DAGU_HOME, 'data', 'dag-runs', name, 'dag-runs')
+    status_file = None
     try:
-        if auth:
-            resp = requests.get(
-                f'{JENKINS_URL}/api/json',
-                params={'tree': 'jobs[name],overallLoad[busyExecutors,totalExecutors,queueLength]'},
-                auth=auth,
-                timeout=5,
-            )
-            if resp.status_code == 401:
-                return jsonify({
-                    'status': 'error',
-                    'overall': 'warn',
-                    'message': 'Jenkins API authentication failed',
-                }), 200
-            resp.raise_for_status()
-
-            payload = resp.json() if resp.content else {}
-            overall_load = payload.get('overallLoad', {})
-            queue_length = int(overall_load.get('queueLength') or 0)
-            busy_executors = int(overall_load.get('busyExecutors') or 0)
-            total_executors = int(overall_load.get('totalExecutors') or 0)
-            jobs_count = len(payload.get('jobs') or [])
-
-            overall = 'warn' if queue_length > 0 else 'ok'
-            message = f'{jobs_count} jobs, queue {queue_length}, executors {busy_executors}/{total_executors}'
-            return jsonify({
-                'status': 'ok',
-                'overall': overall,
-                'message': message,
-                'jobs_count': jobs_count,
-                'queue_length': queue_length,
-                'busy_executors': busy_executors,
-                'total_executors': total_executors,
-                'api_configured': True,
-            })
-
-        # If no API token is configured yet, do a reachability check only.
-        ping = requests.get(f'{JENKINS_URL}/login', timeout=5, allow_redirects=True)
-        ping.raise_for_status()
-        return jsonify({
-            'status': 'ok',
-            'overall': 'warn',
-            'message': 'Jenkins reachable, API token not configured',
-            'jobs_count': None,
-            'queue_length': None,
-            'busy_executors': None,
-            'total_executors': None,
-            'api_configured': False,
-        })
-    except requests.exceptions.Timeout:
-        return jsonify({
-            'status': 'timeout',
-            'overall': 'warn',
-            'message': 'Jenkins status request timed out',
-        }), 200
+        with open(os.path.join(runs_dir, '.dagrun.latest')) as f:
+            rel = json.load(f).get('statusFile')
+        if rel:
+            status_file = os.path.join(runs_dir, rel)
+    except Exception:
+        pass
+    if not status_file or not os.path.isfile(status_file):
+        # Run dirs are named dag-run_YYYYMMDD_HHMMSSZ_<id>, so name order is time order
+        found = sorted(glob.glob(os.path.join(runs_dir, '*', '*', '*', 'dag-run_*', '*', 'status.jsonl')),
+                       key=lambda p: (os.path.basename(os.path.dirname(os.path.dirname(p))),
+                                      os.path.basename(os.path.dirname(p))))
+        if not found:
+            return None
+        status_file = found[-1]
+    try:
+        with open(status_file) as f:
+            lines = [ln for ln in f.read().splitlines() if ln.strip()]
+        return json.loads(lines[-1]) if lines else None
     except Exception as ex:
-        logger.warning(f'Jenkins status probe failed: {ex}')
-        return jsonify({
-            'status': 'error',
-            'overall': 'crit',
-            'message': f'Jenkins unavailable: {ex}',
-        }), 200
+        logger.warning(f'Dagu status read failed for {name}: {ex}')
+        return None
+
+
+def _dagu_parse_time(value):
+    if not value or str(value).startswith('0001-'):
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+@app.route('/api/dagu/status')
+def dagu_status():
+    """Per-job Dagu status: schedule, last run, duration, result, log link.
+
+    Reads DAG definitions and run history straight from the Dagu repo (mounted
+    read-only), so no Dagu API credentials are needed; the unauthenticated
+    health endpoint covers reachability. A job whose last scheduled fire time
+    has passed with no run since is reported as missed -- that is how a DAG
+    Dagu refused to load shows up, since its errors are only in Dagu's log.
+    """
+    health = {'reachable': False, 'version': None}
+    try:
+        resp = requests.get(f'{DAGU_API_URL}/api/v1/health', timeout=5)
+        resp.raise_for_status()
+        body = resp.json()
+        health = {'reachable': body.get('status') == 'healthy', 'version': body.get('version')}
+    except Exception as ex:
+        logger.warning(f'Dagu health probe failed: {ex}')
+
+    jobs = []
+    for path in sorted(glob.glob(os.path.join(DAGU_HOME, 'dags', '*.y*ml'))):
+        try:
+            with open(path) as f:
+                text = f.read()
+        except Exception:
+            continue
+        file_name = os.path.splitext(os.path.basename(path))[0]
+        name = _dagu_top_level(text, 'name') or file_name
+        schedule = _dagu_top_level(text, 'schedule')
+        now = datetime.now(DAGU_TZ)
+        expected = None
+        job = {
+            'name': name,
+            'description': _dagu_top_level(text, 'description'),
+            'schedule': schedule,
+            'next_run': None,
+            'last_run': None,
+            'duration_s': None,
+            'status': 'never run',
+            'overall': 'ok',
+            'url': f'{DAGU_URL}/dags/{file_name}',
+        }
+        if schedule:
+            try:
+                job['next_run'] = croniter(schedule, now).get_next(datetime).isoformat()
+                # Last fire time at least 2 min ago, so a run just starting is not flagged
+                expected = croniter(schedule, now - timedelta(minutes=2)).get_prev(datetime)
+            except Exception:
+                pass
+
+        run = _dagu_latest_run(name)
+        if run:
+            label, sev = _DAGU_STATUS.get(run.get('status'), ('unknown', 'warn'))
+            started = _dagu_parse_time(run.get('startedAt'))
+            finished = _dagu_parse_time(run.get('finishedAt'))
+            job['status'] = label
+            job['overall'] = sev
+            job['last_run'] = started.isoformat() if started else None
+            if started and finished:
+                job['duration_s'] = max(0, int((finished - started).total_seconds()))
+            if run.get('dagRunId'):
+                job['url'] = f"{DAGU_URL}/dag-runs/{name}/{run['dagRunId']}"
+
+        if expected:
+            last = _dagu_parse_time(run.get('scheduleTime') or run.get('startedAt')) if run else None
+            added = datetime.fromtimestamp(os.path.getmtime(path), DAGU_TZ)
+            if (last and last < expected - timedelta(seconds=60)) or (not last and added < expected):
+                job['status'] = 'missed scheduled run'
+                job['missed_at'] = expected.isoformat()
+                job['overall'] = 'crit'
+        jobs.append(job)
+
+    failed = sum(1 for j in jobs if j['overall'] == 'crit')
+    if not health['reachable']:
+        overall = 'crit'
+    elif failed or any(j['overall'] == 'warn' for j in jobs):
+        overall = 'crit' if failed else 'warn'
+    else:
+        overall = 'ok'
+    return jsonify({
+        'status': 'ok' if health['reachable'] else 'error',
+        'overall': overall,
+        'reachable': health['reachable'],
+        'version': health['version'],
+        'url': DAGU_URL,
+        'message': f'{len(jobs)} jobs, {failed} failed or missed' if health['reachable'] else 'Dagu unreachable',
+        'jobs': jobs,
+    })
 
 @app.route('/api/infra/history')
 def infra_history():
