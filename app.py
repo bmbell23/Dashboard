@@ -3423,6 +3423,65 @@ def _start_jellyfin_watcher():
 
 _start_jellyfin_watcher()
 
+
+# =============================================================================
+# PR preview containers (#6). Convention: agent-bus README § "Preview containers".
+# Discovered by label only; never monitored, never controlled from here.
+# =============================================================================
+
+PREVIEW_HOST = os.environ.get('PREVIEW_HOST', '100.69.184.113')
+PREVIEW_LABEL = 'dashboard.preview'
+# Label values agents may reasonably use that differ from the card key.
+PREVIEW_PROJECT_ALIASES = {'greatreads': 'greatreads-prod', 'nerdnews': 'booknews', 'libby': 'libby-web'}
+
+
+def _parse_preview(labels: dict, name: str, status: str, created: str) -> dict | None:
+    """One preview entry from a container's labels, or None if the labels are unusable."""
+    project = (labels.get(f'{PREVIEW_LABEL}.project') or '').strip().lower()
+    port = (labels.get(f'{PREVIEW_LABEL}.port') or '').strip()
+    if not project or not port.isdigit():
+        return None
+    pr = (labels.get(f'{PREVIEW_LABEL}.pr') or '').strip()
+    path = (labels.get(f'{PREVIEW_LABEL}.path') or '/').strip() or '/'
+    if not path.startswith('/'):
+        path = '/' + path
+    return {
+        'project': PREVIEW_PROJECT_ALIASES.get(project, project),
+        'pr': int(pr) if pr.isdigit() else None,
+        'port': int(port),
+        'url': f'http://{PREVIEW_HOST}:{port}{path}',
+        'container': name,
+        'status': status,
+        'created': created,
+    }
+
+
+@app.route('/api/previews')
+def list_previews():
+    """Running preview containers, grouped by card key: {"previews": {"funforge": [...]}}."""
+    code, out, err = _run_cmd(['docker', 'ps', '-q', '--filter', f'label={PREVIEW_LABEL}.project'], timeout=10)
+    if code != 0:
+        return jsonify({'error': err or 'docker ps failed'}), 500
+    ids = out.split()
+    grouped: dict[str, list] = {}
+    if ids:
+        code, out, err = _run_cmd(['docker', 'inspect', '--format',
+                                   '{{json .Config.Labels}}\t{{.Name}}\t{{.State.Status}}\t{{.Created}}', *ids],
+                                  timeout=10)
+        if code != 0:
+            return jsonify({'error': err or 'docker inspect failed'}), 500
+        for line in out.splitlines():
+            try:
+                labels_json, name, status, created = line.split('\t')
+                entry = _parse_preview(json.loads(labels_json) or {}, name.lstrip('/'), status, created)
+            except ValueError:
+                continue
+            if entry:
+                grouped.setdefault(entry['project'], []).append(entry)
+    for entries in grouped.values():
+        entries.sort(key=lambda e: (e['pr'] is None, e['pr'] or 0))
+    return jsonify({'previews': grouped})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8001, debug=False)
 
