@@ -127,6 +127,7 @@
         .ops-table th, .ops-table td { padding: .55rem .65rem; border-bottom: 1px solid #222; font-size: .82rem; text-align: left; vertical-align: top; }
         .ops-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem; color: #b9b9b9; }
+        .ops-list a { color: inherit; text-decoration: underline dotted; }
         .soft { color: var(--muted); font-size: .75rem; }
 
         .backup-table { width: 100%; border-collapse: collapse; min-width: 920px; }
@@ -280,8 +281,8 @@
             <ul id="host-list" class="ops-list"></ul>
         </div>
         <div class="ops-card">
-            <h4>Jenkins CI/CD</h4>
-            <ul id="jenkins-list" class="ops-list"></ul>
+            <h4>Dagu Scheduled Jobs</h4>
+            <ul id="dagu-list" class="ops-list"></ul>
         </div>
     </div>
 </div>
@@ -735,47 +736,38 @@ function renderHostAndProxmox(hostCfg, proxmox) {
     el.innerHTML = html;
 }
 
-function renderJenkins(data) {
-    const el = $('jenkins-list');
+function fmtDuration(s) {
+    if (s == null) return '';
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+function fmtWhen(iso) {
+    return iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+function renderDagu(data) {
+    const el = $('dagu-list');
     if (!data || !data.status) {
-        el.innerHTML = '<li class="empty-note">Jenkins status unavailable.</li>';
+        el.innerHTML = '<li class="empty-note">Dagu status unavailable.</li>';
         return;
     }
 
-    const rows = [
-        {
-            name: 'Endpoint',
-            val: data.status === 'ok' ? 'Reachable' : (data.status || 'unknown'),
-            sev: data.overall || 'warn'
-        },
-        {
-            name: 'API Mode',
-            val: data.api_configured ? 'Authenticated' : 'Reachability only',
-            sev: data.api_configured ? 'ok' : 'warn'
-        },
-        {
-            name: 'Summary',
-            val: data.message || 'No details',
-            sev: data.overall || 'warn'
-        }
-    ];
+    const version = data.version ? ` (v${data.version})` : '';
+    let html = `<li class="ops-row"><div class="ops-left"><span class="name">Scheduler</span><span class="soft">${data.reachable ? 'Reachable' + version : 'Unreachable'} &middot; ${data.message || ''}</span></div><div>${sevTag(data.reachable ? 'ok' : 'crit')}</div></li>`;
 
-    if (data.jobs_count != null) {
-        rows.push({ name: 'Jobs', val: `${data.jobs_count}`, sev: 'ok' });
-    }
-    if (data.queue_length != null) {
-        rows.push({ name: 'Queue', val: `${data.queue_length}`, sev: data.queue_length > 0 ? 'warn' : 'ok' });
-    }
-    if (data.total_executors != null && data.busy_executors != null) {
-        rows.push({
-            name: 'Executors',
-            val: `${data.busy_executors}/${data.total_executors} busy`,
-            sev: 'ok'
-        });
-    }
+    html += (data.jobs || []).map(j => {
+        let last = j.last_run
+            ? `${j.status === 'missed scheduled run' ? 'last ran' : j.status} &middot; ${fmtWhen(j.last_run)}${j.duration_s != null ? ' &middot; ' + fmtDuration(j.duration_s) : ''}`
+            : 'never run';
+        if (j.missed_at) last = `missed ${fmtWhen(j.missed_at)} run &middot; ${last}`;
+        const next = j.next_run ? ` &middot; next ${fmtWhen(j.next_run)}` : '';
+        return `<li class="ops-row"><div class="ops-left"><span class="name"><a href="${j.url}" target="_blank" rel="noreferrer noopener" title="${j.last_run ? 'Open this run\'s log in Dagu' : 'Open in Dagu'}">${j.name}</a></span><span class="soft">${last}</span></div><div>${sevTag(j.last_run || j.missed_at ? j.overall : 'unknown')}</div></li>`
+            + `<li class="soft mono">${j.schedule || 'manual'}${next}</li>`;
+    }).join('');
 
-    let html = rows.map(r => `<li class="ops-row"><div class="ops-left"><span class="name">${r.name}</span><span class="soft">${r.val}</span></div><div>${sevTag(r.sev)}</div></li>`).join('');
-    html += '<li class="soft mono">Dashboard endpoint: /api/jenkins/status</li>';
+    html += `<li class="soft mono"><a href="${data.url}" target="_blank" rel="noreferrer noopener">Open Dagu</a> &middot; endpoint: /api/dagu/status</li>`;
     el.innerHTML = html;
 }
 
@@ -800,10 +792,10 @@ function refreshExtended() {
             renderDockerSummary(ext.docker || {});
             renderHostAndProxmox(ext.host_config || {}, ext.proxmox || {});
 
-            fetch(`/api/jenkins/status?_=${Date.now()}`)
+            fetch(`/api/dagu/status?_=${Date.now()}`)
                 .then(r => r.ok ? r.json() : Promise.reject(r.status))
-                .then(js => renderJenkins(js))
-                .catch(() => renderJenkins({ status: 'error', overall: 'crit', message: 'Jenkins status fetch failed' }));
+                .then(ds => renderDagu(ds))
+                .catch(() => renderDagu(null));
         })
         .catch(e => console.warn('Extended status fetch failed', e));
 }
