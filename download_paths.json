@@ -5,7 +5,8 @@
     "video":        "/mnt/boston/media/videos/social",
     "music":        "/mnt/boston/media/music",
     "kids_video":   "/mnt/boston/media/kid-media/Videos",
-    "kids_audio":   "/mnt/boston/media/kid-media/Podcasts"
+    "kids_audio":   "/mnt/boston/media/kid-media/Podcasts",
+    "kids_music":   "/mnt/boston/media/kid-media/Music"
   },
   "gallery": {
     "adult":        "/mnt/boston/media/other/Pictures",
