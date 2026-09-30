@@ -39,6 +39,7 @@ _PATHS_DEFAULT = {
         'music':       '/mnt/boston/media/music',
         'kids_video':  '/mnt/boston/media/kid-media/Videos',
         'kids_audio':  '/mnt/boston/media/kid-media/Podcasts',
+        'kids_music':  '/mnt/boston/media/kid-media/Music',
     },
     'gallery': {
         'adult':   '/mnt/boston/media/other/Pictures',
@@ -2406,13 +2407,31 @@ def download_stash_video():
         logger.error(f"Error downloading stash video: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+KIDS_MUSIC_MAX_SECONDS = 5 * 60
+
+
+def _ytdlp_duration(url, cookies_args):
+    """Return the duration of a single yt-dlp item in seconds, or None if unknown."""
+    try:
+        r = subprocess.run(
+            ['docker', 'exec', 'yt-dlp-web', 'yt-dlp', '--skip-download', '--no-playlist',
+             '--print', 'duration', *cookies_args, url],
+            capture_output=True, text=True, timeout=60
+        )
+        first = (r.stdout or '').strip().splitlines()[:1]
+        return float(first[0]) if first and first[0] not in ('NA', '') else None
+    except Exception as e:
+        logger.warning(f"yt-dlp duration probe failed: {e}")
+        return None
+
+
 @app.route('/api/download/ytdlp', methods=['POST'])
 def download_ytdlp():
     """Download audio or video from any yt-dlp supported site.
     Body: { url, format, adult, short, kids }
 
     Routing (paths from download_paths.json):
-      audio + kids  → kids_audio  path
+      audio + kids  → kids_music path if under 5 min, else kids_audio path
       audio         → music       path
       video + short + adult → adult_short + Stash scan
       video + adult → adult_video + Stash scan
@@ -2441,8 +2460,16 @@ def download_ytdlp():
     _yt_cookies_args = ['--cookies', '/cookies/youtube.txt'] if os.path.exists(_yt_cookies_host) else []
 
     if fmt == 'audio':
-        dest_label = paths['kids_audio'] if is_kids else paths['music']
-        mount = '/kid-podcasts' if is_kids else '/music'
+        dest_label, mount = paths['music'], '/music'
+        if is_kids:
+            # Kids audio: short tracks are songs, long ones are podcasts.
+            # Unknown duration keeps the old behaviour (podcasts).
+            duration = _ytdlp_duration(url, _yt_cookies_args)
+            if duration is not None and duration < KIDS_MUSIC_MAX_SECONDS:
+                dest_label = paths.get('kids_music', _PATHS_DEFAULT['ytdlp']['kids_music'])
+                mount = '/kid-music'
+            else:
+                dest_label, mount = paths['kids_audio'], '/kid-podcasts'
         cmd = [
             'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
             '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
@@ -2458,7 +2485,8 @@ def download_ytdlp():
         cmd = [
             'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
             '--format', video_fmt, '--merge-output-format', 'mp4',
-            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            '--add-metadata', '--write-info-json',
+            '--no-part', '--no-continue', '--retries', '10',
             *_yt_cookies_args,
             '-o', '/stash-shorts/%(id)s - %(title)s.%(ext)s',
             url
@@ -2469,7 +2497,8 @@ def download_ytdlp():
         cmd = [
             'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
             '--format', video_fmt, '--merge-output-format', 'mp4',
-            '--add-metadata', '--no-part', '--no-continue', '--retries', '10',
+            '--add-metadata', '--write-info-json',
+            '--no-part', '--no-continue', '--retries', '10',
             *_yt_cookies_args,
             '-o', '/stash-videos/%(id)s - %(title)s.%(ext)s',
             url
