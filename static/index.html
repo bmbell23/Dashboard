@@ -293,6 +293,18 @@
             box-shadow: var(--glow);
         }
 
+        .url-dot {
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: 50%;
+            margin-left: auto;
+            flex: 0 0 auto;
+            background: #6b7280;
+        }
+        .url-dot.up { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .url-dot.down { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        .service-card.url-down { border-color: #ef4444; }
+
         .service-link {
             text-decoration: none;
             color: inherit;
@@ -2307,6 +2319,45 @@
             const icon = el.querySelector('.toggle-icon');
             icon.className = li.classList.contains('collapsed') ? 'toggle-icon fas fa-chevron-right' : 'toggle-icon fas fa-chevron-down';
         }
+
+        // ── Card URL health dots ─────────────────────────────────────────
+        (function initCardUrlHealth() {
+            const links = [...document.querySelectorAll('.service-card > a.service-link')]
+                .filter(a => a.href.includes('://100.69.184.113:'));
+            const dots = new Map();
+            for (const a of links) {
+                const header = a.querySelector('.service-header');
+                if (!header) continue;
+                const dot = document.createElement('span');
+                dot.className = 'url-dot';
+                dot.title = 'Page check: pending';
+                header.appendChild(dot);
+                dots.set(a.getAttribute('href'), { dot, card: a.closest('.service-card') });
+            }
+
+            function apply(results) {
+                for (const [href, { dot, card }] of dots) {
+                    const r = results[href];
+                    if (!r) continue;
+                    dot.className = `url-dot ${r.ok ? 'up' : 'down'}`;
+                    card.classList.toggle('url-down', !r.ok);
+                    const checked = new Date(r.ts * 1000).toLocaleTimeString();
+                    dot.title = r.ok
+                        ? `Page up: HTTP ${r.code}, ${r.ms} ms (checked ${checked})`
+                        : `Page down: ${r.error} (checked ${checked})`;
+                }
+            }
+
+            function fetchHealth() {
+                fetch('/api/cards/health')
+                    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                    .then(apply)
+                    .catch(() => {});
+            }
+
+            fetchHealth();
+            setInterval(fetchHealth, 60_000);
+        })();
 
         // ── Health button status color ───────────────────────────────────
         (function initHealthButtonStatus() {
