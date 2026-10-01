@@ -1862,6 +1862,74 @@ def _metrics_loop():
 threading.Thread(target=_metrics_loop, daemon=True, name='metrics-collector').start()
 
 
+# =============================================================================
+# Card URL health — probes the page each card links to, not just its container.
+# A healthy container can still serve a dead page, and some services (the
+# GreatReads reader on :8090) are not containers at all.
+# =============================================================================
+
+_CARD_HREF_RE = re.compile(r'href="(https?)://100\.69\.184\.113:(\d+)([^"]*)"\s+class="service-link"')
+_card_health: dict = {}
+_card_health_lock = threading.Lock()
+
+
+def _card_urls() -> list[str]:
+    """Card links that point at this server, read from the live index.html."""
+    try:
+        with open(os.path.join(app.static_folder, 'index.html')) as f:
+            html = f.read()
+    except OSError as ex:
+        logger.warning(f'Card URL read failed: {ex}')
+        return []
+    return sorted({f'{scheme}://100.69.184.113:{port}{path}'
+                   for scheme, port, path in _CARD_HREF_RE.findall(html)})
+
+
+def _probe_card_url(href: str) -> dict:
+    """Probe a card URL via 127.0.0.1 (the Tailscale IP times out from the server itself).
+    Any answer below 500 counts as up: 401/403 still mean the service is serving."""
+    m = re.match(r'(https?)://[^:/]+:(\d+)(.*)', href)
+    scheme, port, path = m.group(1), m.group(2), m.group(3) or '/'
+    started = time.time()
+    try:
+        r = requests.get(f'{scheme}://127.0.0.1:{port}{path}', timeout=5,
+                         verify=False, allow_redirects=True, stream=True)
+        r.close()
+        ok = r.status_code < 500
+        return {'ok': ok, 'code': r.status_code, 'ms': int((time.time() - started) * 1000),
+                'error': None if ok else f'HTTP {r.status_code}', 'ts': int(time.time())}
+    except requests.RequestException as ex:
+        return {'ok': False, 'code': None, 'ms': int((time.time() - started) * 1000),
+                'error': type(ex).__name__, 'ts': int(time.time())}
+
+
+def _card_health_loop():
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    while True:
+        try:
+            results = {href: _probe_card_url(href) for href in _card_urls()}
+            with _card_health_lock:
+                _card_health.clear()
+                _card_health.update(results)
+            down = [h for h, r in results.items() if not r['ok']]
+            if down:
+                logger.info(f'Card URLs down: {down}')
+        except Exception as ex:
+            logger.warning(f'Card health error: {ex}')
+        time.sleep(60)
+
+
+threading.Thread(target=_card_health_loop, daemon=True, name='card-health').start()
+
+
+@app.route('/api/cards/health')
+def cards_health():
+    """Latest probe result per card URL, keyed by the card's href."""
+    with _card_health_lock:
+        return jsonify(dict(_card_health))
+
+
 @app.route('/api/restart/<service_id>', methods=['POST'])
 def restart_container(service_id):
     """Restart a Docker container."""
