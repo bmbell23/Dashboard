@@ -1,0 +1,84 @@
+# Alert rules for the monitoring stack (docker/monitoring, #53). Owned here (#32):
+# Prometheus mounts this directory from the main clone. Change by PR, then
+# `monitoring/check.sh` and, after merge, `curl -X POST localhost:9090/-/reload`.
+# The bar: Mongo only speaks when something is actually in danger.
+groups:
+  - name: host
+    rules:
+      - alert: HostDiskUsage
+        expr: |
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}
+             / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+
+      - alert: HostDiskUsage
+        expr: |
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}
+             / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}) > 0.95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+
+      # Jan 7 was a disk filling up. Catch the trend before the threshold.
+      - alert: HostDiskFillingFast
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}[6h], 24 * 3600) < 0
+          and on (instance, mountpoint)
+          (1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) > 0.5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} will be full within 24h at the current rate"
+
+      # Niced work (Jellyfin thumbnails, whisper) yields to everything else, so it
+      # doesn't count as busy here.
+      - alert: HostCPUSaturated
+        expr: |
+          1 - avg by (instance) (rate(node_cpu_seconds_total{mode=~"idle|nice|iowait"}[5m])) > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} CPU is {{ $value | humanizePercentage }} busy (excluding niced work) for 15m"
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} has {{ $value | humanizePercentage }} memory available"
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} has {{ $value | humanizePercentage }} memory available"
+
+  - name: targets
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for 5m"
+
+  - name: containers
+    rules:
+      - alert: ContainerRestartLoop
+        expr: changes(container_start_time_seconds{name!=""}[15m]) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restarted {{ $value }} times in 15m"
