@@ -24,6 +24,8 @@ services:
       - /var/spool/cron:/host_var_spool_cron:ro
       - /var/log:/host_var_log:ro
       - /home/brandon/.ssh:/root/.ssh:ro
+      # Global gitignore, so the repo panel ignores what Brandon's own git ignores
+      - /home/brandon/.config/git/ignore:/root/.config/git/ignore:ro
 
     environment:
       - TZ=America/New_York
