@@ -3520,6 +3520,32 @@ def list_previews():
     return jsonify({'previews': grouped})
 
 
+@app.route('/apk/<key>')
+def download_apk(key):
+    """Phone app for a service, served from the Dashboard's own origin. The app's port is fetched
+    over 127.0.0.1, so the download works wherever the Dashboard page itself loads."""
+    svc = next((x for x in _load_services()['services'] if x['key'] == key and x.get('apk')), None)
+    if not svc:
+        return jsonify({'error': f'no phone app for {key}'}), 404
+    m = re.match(r'(https?)://[^:/]+:(\d+)(/.*)', svc['apk'])
+    if not m:
+        return jsonify({'error': 'bad apk url in services.json'}), 500
+    try:
+        upstream = requests.get(f'{m.group(1)}://127.0.0.1:{m.group(2)}{m.group(3)}',
+                                stream=True, timeout=30, verify=False)
+    except requests.RequestException as ex:
+        return jsonify({'error': f'{svc["name"]} app download unreachable: {type(ex).__name__}'}), 502
+    if upstream.status_code != 200:
+        upstream.close()
+        return jsonify({'error': f'{svc["name"]} app download returned HTTP {upstream.status_code}'}), 502
+    filename = os.path.basename(m.group(3)) or f'{key}.apk'
+    headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
+    if upstream.headers.get('Content-Length'):
+        headers['Content-Length'] = upstream.headers['Content-Length']
+    return app.response_class(upstream.iter_content(64 * 1024), headers=headers,
+                              mimetype='application/vnd.android.package-archive')
+
+
 @app.route('/api/services')
 def list_services():
     """The registry merged with live state: container status, page check, running previews."""

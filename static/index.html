@@ -1766,7 +1766,7 @@
                         ? `<a class="chip preview pr-link" href="https://github.com/${esc(s.repo)}/pull/${p.pr}" target="_blank" rel="noopener" title="Review and merge on GitHub: ${esc(s.repo)}#${p.pr}"><i class="fab fa-github"></i></a>`
                         : '') + `</span>`).join('');
                 const apk = s.apk
-                    ? `<a class="svc-menu-link" href="${esc(s.apk)}" download><i class="fas fa-mobile-screen-button"></i> Download phone app</a>` : '';
+                    ? `<a class="svc-menu-link" href="/apk/${encodeURIComponent(s.key)}" download><i class="fas fa-mobile-screen-button"></i> Download phone app</a>` : '';
                 const menu = apk + (s.controls === 'container'
                     ? `<button onclick="restartContainer('${esc(s.key)}')"><i class="fas fa-redo"></i> Restart</button>
                        <button onclick="recreateContainer('${esc(s.key)}')"><i class="fas fa-hammer"></i> Recreate</button>`
