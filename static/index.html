@@ -915,7 +915,9 @@
         .svc-menu.open { display: block; }
         .svc-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--off-white);
             padding: .55rem .8rem; cursor: pointer; font-size: .85rem; }
-        .svc-menu button:hover { background: var(--medium-gray); }
+        .svc-menu button:hover, .svc-menu-link:hover { background: var(--medium-gray); }
+        .svc-menu-link { display: block; color: var(--off-white); text-decoration: none; padding: .55rem .8rem; font-size: .85rem;
+            border-bottom: 1px solid var(--medium-gray); }
         .svc-menu .hint { color: #9ca3af; font-size: .72rem; padding: .4rem .8rem; border-top: 1px solid var(--medium-gray); }
         .svc-empty { color: var(--light-gray); padding: 1rem; }
         @media (max-width: 640px) {
@@ -1763,12 +1765,14 @@
                     (p.pr != null && s.repo
                         ? `<a class="chip preview pr-link" href="https://github.com/${esc(s.repo)}/pull/${p.pr}" target="_blank" rel="noopener" title="Review and merge on GitHub: ${esc(s.repo)}#${p.pr}"><i class="fab fa-github"></i></a>`
                         : '') + `</span>`).join('');
-                const menu = s.controls === 'container'
+                const apk = s.apk
+                    ? `<a class="svc-menu-link" href="${esc(s.apk)}" download><i class="fas fa-mobile-screen-button"></i> Download phone app</a>` : '';
+                const menu = apk + (s.controls === 'container'
                     ? `<button onclick="restartContainer('${esc(s.key)}')"><i class="fas fa-redo"></i> Restart</button>
                        <button onclick="recreateContainer('${esc(s.key)}')"><i class="fas fa-hammer"></i> Recreate</button>`
                     : s.controls === 'self'
                     ? `<button onclick="selfRestart()"><i class="fas fa-redo"></i> Restart</button>
-                       <button onclick="selfRecreate()"><i class="fas fa-hammer"></i> Recreate</button>` : '';
+                       <button onclick="selfRecreate()"><i class="fas fa-hammer"></i> Recreate</button>` : '');
                 return `<div class="svc-row ${state === 'down' ? 'down' : ''}" data-key="${esc(s.key)}">
                     <span class="svc-dot ${state}" title="${esc(why)}"></span>
                     <i class="svc-icon ${esc(s.icon)}"></i>
@@ -1781,7 +1785,7 @@
                         ${(s.extras || []).map(extraChip).join('')}
                         ${s.owner ? `<span class="chip owner" title="Owner">@${esc(s.owner)}</span>` : ''}
                     </div>
-                    ${menu ? `<button class="svc-menu-btn" title="Container controls" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
+                    ${menu ? `<button class="svc-menu-btn" title="More" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
                     <div class="svc-menu" id="svc-menu-${esc(s.key)}">${menu}<div class="hint">${esc((s.container || {}).name || '')}</div></div>` : ''}
                 </div>`;
             }

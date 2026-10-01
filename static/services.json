@@ -1,5 +1,5 @@
 {
-  "_comment": "The Dashboard service list (#6). One entry per service; the main page renders from this. controls: \"container\" = Restart/Recreate via CONTAINERS[key] in app.py, \"self\" = the Dashboard itself. preview_names: extra dashboard.preview.project label values that belong to this service. repo: GitHub owner/name, used to link a preview's PR.",
+  "_comment": "The Dashboard service list (#6). One entry per service; the main page renders from this. controls: \"container\" = Restart/Recreate via CONTAINERS[key] in app.py, \"self\" = the Dashboard itself. preview_names: extra dashboard.preview.project label values that belong to this service. repo: GitHub owner/name, used to link a preview's PR. apk: phone app download, shown in the row's ⋯ menu.",
   "categories": [
     {
       "name": "Projects",
@@ -33,18 +33,10 @@
       "category": "Projects",
       "owner": "ginger",
       "repo": "bmbell23/GreatReads",
+      "apk": "http://100.69.184.113:8090/ereader.apk",
       "controls": "container",
       "preview_names": [
         "greatreads"
-      ],
-      "extras": [
-        {
-          "label": null,
-          "icon": "fas fa-download",
-          "kind": "apk",
-          "href": "http://100.69.184.113:8090/ereader.apk",
-          "title": "Download Android APK"
-        }
       ]
     },
     {
@@ -72,16 +64,8 @@
       "category": "Projects",
       "owner": "luna",
       "repo": "bmbell23/LifeForge",
-      "controls": "container",
-      "extras": [
-        {
-          "label": null,
-          "icon": "fas fa-download",
-          "kind": "apk",
-          "href": "http://100.69.184.113:8004/download/lifeforge.apk",
-          "title": "Download Android APK"
-        }
-      ]
+      "apk": "http://100.69.184.113:8004/download/lifeforge.apk",
+      "controls": "container"
     },
     {
       "key": "artforge",
@@ -144,6 +128,7 @@
       "category": "Projects",
       "owner": "felicia",
       "repo": "bmbell23/FunForge",
+      "apk": "http://100.69.184.113:8006/download/funforge.apk",
       "controls": "container"
     },
     {
@@ -192,6 +177,7 @@
       "category": "Projects",
       "owner": "willow",
       "repo": "bmbell23/WebForge",
+      "apk": "http://100.69.184.113:8012/webforge.apk",
       "controls": "container"
     },
     {
