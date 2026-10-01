@@ -723,9 +723,71 @@ def _discover_repo_targets() -> list[dict]:
     return repos
 
 
+DEPLOY_STATE_FILE = '/home/brandon/projects/docker/logs/deploy/state.json'
+DEPLOY_STATE_STALE_S = 15 * 60  # reconciler runs every ~2 min (docker#45)
+
+
+def _read_deploy_state() -> tuple[dict, str | None]:
+    """Per-repo results from the GitOps reconciler (agent-bus threads/016), plus a staleness note."""
+    try:
+        with open(DEPLOY_STATE_FILE) as f:
+            state = json.load(f)
+    except FileNotFoundError:
+        return {}, None
+    except Exception as ex:
+        return {}, f'deploy state unreadable: {ex}'
+    note = None
+    try:
+        updated = datetime.fromisoformat(state.get('updated'))
+        age = time.time() - updated.timestamp()
+        if age > DEPLOY_STATE_STALE_S:
+            note = f'reconciler last ran {int(age // 60)} min ago'
+    except Exception:
+        note = 'deploy state has no valid "updated" time'
+    return state.get('repos') or {}, note
+
+
+def _deploy_status(repo: dict, entry: dict | None, stale_note: str | None) -> dict:
+    """Deploy column for one repo: deployed sha vs origin/main and the last result."""
+    has_script = os.path.isfile(os.path.join(repo['path'], 'deploy'))
+    if not entry:
+        return {'severity': 'none', 'state': 'manual' if not has_script else 'not enrolled',
+                'has_script': has_script}
+    status = entry.get('status') or 'unknown'
+    deployed, origin = entry.get('deployed_sha'), entry.get('origin_sha')
+    if status == 'failed':
+        sev, state = 'crit', 'failed'
+    elif status == 'deploying':
+        sev, state = 'warn', 'deploying'
+    elif status.startswith('skipped'):
+        sev, state = 'warn', status.replace('-', ' ')
+    elif deployed and origin and deployed != origin:
+        sev, state = 'warn', 'out of sync'
+    elif status == 'ok':
+        sev, state = 'ok', 'in sync'
+    else:
+        sev, state = 'warn', status
+    if stale_note and sev == 'ok':
+        sev = 'warn'
+    return {
+        'severity': sev, 'state': state, 'has_script': has_script,
+        'deployed_sha': deployed, 'origin_sha': origin, 'ts': entry.get('ts'),
+        'message': entry.get('message'), 'log': entry.get('log'),
+        'rollback_tag': entry.get('rollback_tag'), 'stale': stale_note,
+    }
+
+
 def _read_git_repos() -> dict:
     targets = _discover_repo_targets()
     repos = [_repo_status(r) for r in targets]
+    deploy_state, stale_note = _read_deploy_state()
+    by_path = {e.get('path'): e for e in deploy_state.values() if isinstance(e, dict)}
+    for r in repos:
+        entry = deploy_state.get(r['name']) or by_path.get(r['path'])
+        r['deploy'] = _deploy_status(r, entry, stale_note)
+        # A failed or drifting deploy means prod is not running main: at least a warning.
+        if r['deploy']['severity'] in ('warn', 'crit') and r['severity'] == 'ok':
+            r['severity'] = 'warn'
     worst = 'ok'
     if any(r['severity'] == 'crit' for r in repos):
         worst = 'crit'

@@ -208,6 +208,7 @@
                     <th>Repository</th>
                     <th>Branch</th>
                     <th>Status</th>
+                    <th>Deploy</th>
                     <th>Notes</th>
                 </tr>
             </thead>
@@ -561,11 +562,27 @@ function renderContainers(containers) {
 }
 
 // ── Extended Ops panels ─────────────────────────────────────────────────────
+// Deploy column: what the GitOps reconciler (docker#45) last did for this repo.
+function renderDeployCell(d) {
+    if (!d) return '<span class="soft">n/a</span>';
+    if (d.severity === 'none') return `<span class="soft">${esc(d.state).toUpperCase()}</span>`;
+    const sha = d.deployed_sha && d.origin_sha && d.deployed_sha !== d.origin_sha
+        ? `<span class="mono">${esc(d.deployed_sha)} → ${esc(d.origin_sha)}</span>`
+        : `<span class="mono">${esc(d.deployed_sha || '')}</span>`;
+    const when = d.ts ? new Date(d.ts).toLocaleString() : '';
+    return `${sevTag(d.severity)} <span class="soft" style="margin-left:.4rem">${esc(d.state).toUpperCase()}</span>
+        <div>${sha}</div>
+        ${d.message ? `<div class="soft">${esc(d.message)}</div>` : ''}
+        ${when ? `<div class="soft">${esc(when)}</div>` : ''}
+        ${d.stale ? `<div class="soft">${esc(d.stale)}</div>` : ''}
+        ${d.log ? `<div class="mono soft" title="log on dockerhost">${esc(d.log)}</div>` : ''}`;
+}
+
 function renderRepos(data) {
     const tbody = $('repos-tbody');
     const repos = (data && data.repos) || [];
     if (repos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="soft">No repository data available.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="soft">No repository data available.</td></tr>`;
         return;
     }
     tbody.innerHTML = repos.map(r => {
@@ -573,6 +590,7 @@ function renderRepos(data) {
             <td><div>${r.name}</div><div class="mono">${r.path}</div></td>
             <td>${r.branch || '<span class="soft">n/a</span>'}</td>
             <td>${sevTag(r.severity)} <span class="soft" style="margin-left:.4rem">${(r.state || '').replace(/_/g, ' ').toUpperCase()}</span></td>
+            <td>${renderDeployCell(r.deploy)}</td>
             <td>${r.summary || ''}${r.conflicts ? `<div class="soft">conflicts: ${r.conflicts}</div>` : ''}${r.dirty_files ? `<div class="soft">dirty files: ${r.dirty_files}</div>` : ''}</td>
         </tr>`;
     }).join('');
