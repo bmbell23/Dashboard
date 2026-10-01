@@ -21,7 +21,7 @@ Last updated: 2026-03-29
 | nvme      | nvme0n1   | 233 GB    | NVMe SSD  | NVMe      | `/` (LVM)         | Mounted   | Proxmox OS, VM disks, swap        |
 | boston    | sda       | 7.3 TB    | HDD       | SATA      | `/mnt/boston`     | Mounted   | VM backups and bulk storage       |
 | ssd250    | sdb       | 224 GB    | SSD       | SATA      | `/mnt/ssd250`     | Mounted   | Extra VM storage (VM 100 disks)   |
-| backups   | sdc       | 932 GB    | SSD       | SATA      | `/mnt/backups`    | Mounted   | Local file backups (`CLEAN_E`)    |
+| backups   | sdc       | 932 GB    | SSD       | SATA      | `/mnt/backups`    | Removed   | Dead; no longer monitored (#16)   |
 
 ### External
 

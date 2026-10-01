@@ -159,7 +159,6 @@ THRESHOLDS = {
     'docker_disk': {'warn': 75, 'crit': 85},
     'ssd250_disk': {'warn': 85, 'crit': 93},
     'nas_disk':    {'warn': 85, 'crit': 93},
-    'backups_disk': {'warn': 85, 'crit': 93},
     'external_disk': {'warn': 85, 'crit': 93},
     'nvme_disk': {'warn': 85, 'crit': 93},
     'allston_disk': {'warn': 85, 'crit': 93},
@@ -356,7 +355,7 @@ def _read_proxmox_disks_remote() -> dict[str, dict]:
 
     code, out, _ = _run_cmd(
         ssh_base + [
-            "df -B1 --output=target,size,used,pcent /mnt/backups /mnt/external /mnt/ssd250 2>/dev/null | tail -n +2"
+            "df -B1 --output=target,size,used,pcent /mnt/external /mnt/ssd250 2>/dev/null | tail -n +2"
         ],
         timeout=12,
     )
@@ -364,7 +363,6 @@ def _read_proxmox_disks_remote() -> dict[str, dict]:
         return {}
 
     mapping = {
-        '/mnt/backups': 'backups_disk',
         '/mnt/external': 'external_disk',
         '/mnt/ssd250': 'ssd250_disk',
     }
@@ -408,7 +406,7 @@ def _read_drive_inventory_remote() -> list[dict]:
             })
         return out
 
-    df_cmd = "df -B1 --output=target,size,used,pcent / /mnt/boston /mnt/backups /mnt/external /mnt/ssd250 /mnt/allston /mnt/flash 2>/dev/null | tail -n +2"
+    df_cmd = "df -B1 --output=target,size,used,pcent / /mnt/boston /mnt/external /mnt/ssd250 /mnt/allston /mnt/flash 2>/dev/null | tail -n +2"
     c_df, out_df, _ = _run_cmd(ssh_base + [df_cmd], timeout=12)
     by_mount: dict[str, dict] = {}
     if c_df == 0 and out_df:
@@ -1000,7 +998,7 @@ def _read_vm_backup_overview() -> dict:
         }
 
     ssh_base = None
-    files_cmd = "ls -1t /mnt/boston/proxmox-backups/dump/vzdump-* /mnt/boston/proxmox-backups/vzdump-* /mnt/backups/vzdump-* /var/lib/vz/dump/vzdump-* 2>/dev/null | head -n 24"
+    files_cmd = "ls -1t /mnt/boston/proxmox-backups/dump/vzdump-* /mnt/boston/proxmox-backups/vzdump-* /var/lib/vz/dump/vzdump-* 2>/dev/null | head -n 24"
     code = 1
     out = ''
     for base in ssh_candidates:
@@ -1613,7 +1611,7 @@ def _read_proxmox_info() -> dict:
             'backups': [],
         }
 
-    code, out, err = _run_cmd(ssh_base + ["ls -1t /mnt/backups 2>/dev/null | head -20"], timeout=12)
+    code, out, err = _run_cmd(ssh_base + ["ls -1t /mnt/boston/proxmox-backups/dump 2>/dev/null | head -20"], timeout=12)
     if code != 0:
         return {
             'severity': 'warn',
@@ -1656,7 +1654,7 @@ def _read_proxmox_info() -> dict:
     return {
         'severity': sev,
         'configured': True,
-        'summary': f'Found {len(backups)} backup item(s) in /mnt/backups',
+        'summary': f'Found {len(backups)} backup item(s) in /mnt/boston/proxmox-backups/dump',
         'backups': backups,
         'mounts': mounts,
         'cron': cron_lines,
@@ -1749,7 +1747,6 @@ def _collect() -> dict:
     dsk        = _read_disk('/mnt/docker')
     ssd250     = _read_disk('/mnt/ssd250')
     nas        = _read_disk('/mnt/boston')
-    backups    = _read_disk('/mnt/backups')
     external   = _read_disk('/mnt/external')
     ctrs       = _read_containers()
     ctr_stats  = _read_container_stats()   # per-container CPU/RAM for pie charts
@@ -1762,12 +1759,10 @@ def _collect() -> dict:
     remote_disks = _read_proxmox_disks_remote()
     if remote_disks.get('ssd250_disk'):
         ssd250 = remote_disks['ssd250_disk']
-    if remote_disks.get('backups_disk'):
-        backups = remote_disks['backups_disk']
     if remote_disks.get('external_disk'):
         external = remote_disks['external_disk']
 
-    # Compose bind-mounts /mnt/{backups,external,ssd250} into this container. When the drive
+    # Compose bind-mounts /mnt/{external,ssd250} into this container. When the drive
     # is not actually mounted, Docker still creates the directory, so it resolves to the host
     # root filesystem and _read_disk reports *its* usage as the drive's (e.g. an unplugged
     # external showing 86%). drive_inventory (df over SSH on Proxmox) is authoritative about
@@ -1776,8 +1771,6 @@ def _collect() -> dict:
     blank = lambda: {'used_gb': 0, 'total_gb': 0, 'pct': 0}
     if 'ssd250_disk' in unmounted:
         ssd250 = blank()
-    if 'backups_disk' in unmounted:
-        backups = blank()
     if 'external_disk' in unmounted:
         external = blank()
 
@@ -1786,7 +1779,7 @@ def _collect() -> dict:
 
     sevs = [_sev(cpu, 'cpu'), _sev(ram_pct, 'ram'), _sev(swap_pct, 'swap'),
             _sev(docker_effective['pct'], 'docker_disk'), _sev(ssd250['pct'], 'ssd250_disk'),
-            _sev(nas['pct'], 'nas_disk'), _sev(backups['pct'], 'backups_disk'),
+            _sev(nas['pct'], 'nas_disk'),
             _sev(external['pct'], 'external_disk')]
     for d in drive_inventory:
         if d.get('severity') in ('warn', 'crit'):
@@ -1810,7 +1803,6 @@ def _collect() -> dict:
         'docker_disk':   {**docker_effective, 'severity': _sev(docker_effective['pct'], 'docker_disk')},
         'ssd250_disk':   {**ssd250, 'severity': _sev(ssd250['pct'], 'ssd250_disk')},
         'nas_disk':      {**nas, 'severity': _sev(nas['pct'], 'nas_disk')},
-        'backups_disk':  {**backups, 'severity': _sev(backups['pct'], 'backups_disk')},
         'external_disk': {**external, 'severity': _sev(external['pct'], 'external_disk')},
         'drive_inventory': drive_inventory,
         'containers':    ctrs,
