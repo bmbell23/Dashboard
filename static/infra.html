@@ -364,7 +364,7 @@ function renderMetrics(snap) {
                 .map(d => ({
                         key: d.id,
                         label: `${d.name} (${d.device})`,
-                        val: d.mounted === false ? 'Not mounted' : `${d.used_gb} GB`,
+                        val: d.retired ? 'Retired' : d.mounted === false ? 'Not mounted' : `${d.used_gb} GB`,
                         sub: d.mounted === false
                                 ? `${d.mountpoint || 'n/a'} - ${d.purpose}`
                                 : `of ${d.total_gb} GB - ${d.mountpoint || 'n/a'}`,
@@ -444,8 +444,11 @@ function renderProblems(snap) {
     });
 
     (snap.drive_inventory || []).forEach(d => {
-        if (d.mounted === false && !d.transient) {
+        if (d.mounted === false && !d.transient && !d.retired) {
             problems.push(`${d.name} (${d.device}) is not mounted at ${d.mountpoint || 'n/a'}`);
+        } else if (d.mounted && !snap[d.id] && d.severity && d.severity !== 'ok') {
+            // Drives with no top-level metric (nvme, allston, flash) only report through the inventory
+            problems.push(`${d.name} (${d.device}) at ${d.pct}% — ${d.severity === 'crit' ? 'critical' : 'elevated'}`);
         }
     });
 
