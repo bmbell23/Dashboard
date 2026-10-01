@@ -870,6 +870,56 @@
                 padding-right: 3rem;
             }
         }
+        /* ── Service list (#6): compact rows rendered from static/services.json ── */
+        .svc-toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .svc-search { flex: 1 1 260px; background: var(--dark-gray); border: 1px solid var(--medium-gray); color: var(--white);
+            border-radius: .5rem; padding: .6rem .9rem; font-size: .95rem; outline: none; }
+        .svc-search:focus { border-color: var(--primary-orange); }
+        .svc-summary { color: var(--light-gray); font-size: .85rem; display: flex; gap: .9rem; flex-wrap: wrap; }
+        .svc-summary b { color: var(--white); }
+        .svc-group { margin-bottom: 1.5rem; }
+        .svc-group-title { color: var(--primary-orange); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+            font-weight: 700; margin: 0 0 .5rem .25rem; display: flex; gap: .5rem; align-items: center; }
+        .svc-group-title .count { color: var(--light-gray); font-weight: 400; }
+        .svc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: .4rem; }
+        .svc-row { display: flex; align-items: center; gap: .75rem; background: var(--dark-gray); border: 1px solid var(--medium-gray);
+            border-radius: .55rem; padding: .55rem .75rem; min-height: 3.1rem; position: relative; }
+        .svc-row:hover { border-color: var(--dark-orange); }
+        .svc-row.down { border-color: #7f1d1d; background: linear-gradient(90deg, rgba(239,68,68,.12), var(--dark-gray) 40%); }
+        .svc-dot { width: .6rem; height: .6rem; border-radius: 50%; flex: 0 0 auto; background: #6b7280; }
+        .svc-dot.up { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .svc-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+        .svc-dot.down { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        .svc-icon { width: 1.4rem; text-align: center; color: var(--primary-orange); flex: 0 0 auto; }
+        .svc-main { flex: 1 1 auto; min-width: 0; text-decoration: none; color: inherit; }
+        .svc-name { color: var(--white); font-weight: 600; font-size: .95rem; }
+        .svc-desc { color: var(--light-gray); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .svc-chips { display: flex; gap: .35rem; align-items: center; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+        .chip { font-size: .72rem; padding: .15rem .5rem; border-radius: 999px; border: 1px solid var(--medium-gray); color: var(--light-gray);
+            text-decoration: none; white-space: nowrap; background: transparent; cursor: default; font-family: inherit; }
+        .chip.port { font-family: ui-monospace, monospace; }
+        a.chip, button.chip { cursor: pointer; }
+        a.chip:hover, button.chip:hover:not(:disabled) { border-color: var(--primary-orange); color: var(--white); }
+        button.chip:disabled { opacity: .4; cursor: default; }
+        .chip.preview { border-color: #a855f7; color: #e9d5ff; background: rgba(168,85,247,.12); font-weight: 600; }
+        .chip.preview:hover { background: rgba(168,85,247,.25); }
+        .chip.owner { color: #9ca3af; }
+        .svc-menu-btn { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: .25rem .4rem; border-radius: .35rem; }
+        .svc-menu-btn:hover { color: var(--white); background: var(--medium-gray); }
+        .svc-menu { position: absolute; right: .5rem; top: 2.6rem; z-index: 20; background: var(--black); border: 1px solid var(--medium-gray);
+            border-radius: .5rem; box-shadow: var(--shadow); display: none; min-width: 9rem; overflow: hidden; }
+        .svc-menu.open { display: block; }
+        .svc-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--off-white);
+            padding: .55rem .8rem; cursor: pointer; font-size: .85rem; }
+        .svc-menu button:hover { background: var(--medium-gray); }
+        .svc-menu .hint { color: #9ca3af; font-size: .72rem; padding: .4rem .8rem; border-top: 1px solid var(--medium-gray); }
+        .svc-empty { color: var(--light-gray); padding: 1rem; }
+        @media (max-width: 640px) {
+            .svc-list { grid-template-columns: 1fr; }
+            .svc-row { flex-wrap: wrap; padding-right: 2.4rem; }
+            .svc-chips { width: 100%; justify-content: flex-start; padding-left: 2.6rem; }
+            .svc-menu-btn { position: absolute; top: .55rem; right: .4rem; }
+        }
     </style>
 </head>
 <body>
@@ -897,667 +947,11 @@
     <div class="container">
         <h1><i class="fab fa-docker"></i> Docker Dashboard</h1>
 
-        <!-- Reading -->
-        <div class="category">
-            <h2 class="category-title"><i class="fas fa-book-open"></i> Reading</h2>
-            <div class="services">
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8090/greatreads/tbr" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-book"></i>
-                            <span class="service-name">GreatReads</span>
-                        </div>
-                        <div class="service-description">Book Tracking</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8090/greatreads/tbr</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('greatreads-prod')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('greatreads-prod')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                        <a class="action-btn apk-btn" href="http://100.69.184.113:8090/ereader.apk" title="Download Android APK">
-                            <i class="fas fa-download"></i>
-                        </a>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:13378" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-headphones"></i>
-                            <span class="service-name">Audiobookshelf</span>
-                        </div>
-                        <div class="service-description">Audiobook & Podcast Server</div>
-                        <div class="service-footer">
-                            <div class="service-url">:13378</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <button class="action-btn scan-btn" onclick="scanAudiobookshelf()" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-sync"></i> Scan
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('audiobookshelf')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('audiobookshelf')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="https://100.69.184.113:8084" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-book-reader"></i>
-                            <span class="service-name">Calibre</span>
-                        </div>
-                        <div class="service-description">Ebook Library & DeDRM</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8084 / :8083</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <a href="http://100.69.184.113:8083" class="action-btn scan-btn" target="_blank" style="text-decoration:none; margin-bottom: 0.75rem;">
-                            <i class="fas fa-server"></i> Content Server
-                        </a>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('calibre')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('calibre')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:5007" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-book-medical"></i>
-                            <span class="service-name">Libby Browser</span>
-                        </div>
-                        <div class="service-description">Library Ebook Search & Borrow</div>
-                        <div class="service-footer">
-                            <div class="service-url">:5007</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('libby-web')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('libby-web')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div class="svc-toolbar">
+            <input id="svc-search" class="svc-search" type="search" placeholder="Filter services: name, port, owner…" autocomplete="off">
+            <div class="svc-summary" id="svc-summary"></div>
         </div>
-
-        <!-- Forge Apps -->
-        <div class="category">
-            <h2 class="category-title"><i class="fas fa-hammer"></i> Forge Apps</h2>
-            <div class="services">
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8011" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-chess-knight"></i>
-                            <span class="service-name">Chess Stats</span>
-                        </div>
-                        <div class="service-description">chess.com Tracking & Charts</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8011</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('chess')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('chess')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8004" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-bolt"></i>
-                            <span class="service-name">LifeForge</span>
-                        </div>
-                        <div class="service-description">Journaling & Habit Tracking</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8004</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('lifeforge')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('lifeforge')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                        <a class="action-btn apk-btn" href="http://100.69.184.113:8004/download/lifeforge.apk" title="Download Android APK">
-                            <i class="fas fa-download"></i>
-                        </a>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8003" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-palette"></i>
-                            <span class="service-name">ArtForge</span>
-                        </div>
-                        <div class="service-description">Art & Drawing Projects</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8003</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('artforge')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('artforge')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8002" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-pen-fancy"></i>
-                            <span class="service-name">WordForge</span>
-                        </div>
-                        <div class="service-description">Creative Writing</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8002</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('wordforge')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('wordforge')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Media Services -->
-        <div class="category">
-            <h2 class="category-title"><i class="fas fa-photo-video"></i> Media</h2>
-            <div class="services">
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8010" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-newspaper"></i>
-                            <span class="service-name">NerdNews</span>
-                        </div>
-                        <div class="service-description">News Aggregator & Reports</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8010</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('booknews')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('booknews')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:2283" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-images"></i>
-                            <span class="service-name">Immich</span>
-                        </div>
-                        <div class="service-description">Photo & Video Management</div>
-                        <div class="service-footer">
-                            <div class="service-url">:2283</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('immich')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('immich')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8096" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-film"></i>
-                            <span class="service-name">Jellyfin</span>
-                        </div>
-                        <div class="service-description">Media Server</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8096</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <button class="action-btn scan-btn" onclick="scanJellyfin()" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-sync"></i> Scan
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('jellyfin')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('jellyfin')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8080" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-gamepad"></i>
-                            <span class="service-name">Romm</span>
-                        </div>
-                        <div class="service-description">ROM Management</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8080</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('romm')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('romm')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8006" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-child"></i>
-                            <span class="service-name">FunForge</span>
-                        </div>
-                        <div class="service-description">Kids' Music, Stories, Videos &amp; Games</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8006</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('funforge')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('funforge')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Download Services -->
-        <div class="category">
-            <h2 class="category-title"><i class="fas fa-download"></i> Downloads</h2>
-            <div class="services">
-                <div class="service-card">
-                    <a href="http://100.69.184.113:2285/" class="service-link" target="_blank" rel="noreferrer noopener">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-cloud-download-alt"></i>
-                            <span class="service-name">qBittorrent</span>
-                        </div>
-                        <div class="service-description">Torrent Client (VPN Protected)</div>
-                        <div class="service-footer">
-                            <div class="service-url">:2285</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('qbittorrent')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('qbittorrent')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:9117" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-search"></i>
-                            <span class="service-name">Jackett</span>
-                        </div>
-                        <div class="service-description">Torrent Indexer (VPN Protected)</div>
-                        <div class="service-footer">
-                            <div class="service-url">:9117</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('jackett')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('jackett')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="/yt-dlp.html" class="service-link">
-                        <div class="service-header">
-                            <i class="service-icon fab fa-youtube"></i>
-                            <span class="service-name">YT-DLP Web</span>
-                        </div>
-                        <div class="service-description">YouTube Downloader</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8998</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <button class="action-btn download-btn" onclick="downloadYouTube()" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-download"></i> Download
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('ytdlp')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('ytdlp')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="/gallery-dl.html" class="service-link">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-images"></i>
-                            <span class="service-name">Gallery-DL</span>
-                        </div>
-                        <div class="service-description">Image Gallery Downloader</div>
-                        <div class="service-footer">
-                            <div class="service-url">400+ Sites</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <button class="action-btn download-btn" onclick="downloadGallery()" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-download"></i> Download
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('gallery-dl')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('gallery-dl')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:6595" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-music"></i>
-                            <span class="service-name">Deemix</span>
-                        </div>
-                        <div class="service-description">Music Downloader (Deezer)</div>
-                        <div class="service-footer">
-                            <div class="service-url">:6595</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('deemix')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('deemix')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Tools -->
-        <div class="category">
-            <h2 class="category-title"><i class="fas fa-tools"></i> Tools</h2>
-            <div class="services">
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8085" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-book-open"></i>
-                            <span class="service-name">Trilium Notes</span>
-                        </div>
-                        <div class="service-description">Personal Knowledge Base</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8085</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('trilium')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('trilium')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:9999" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-tags"></i>
-                            <span class="service-name">Stash</span>
-                        </div>
-                        <div class="service-description">Media Organizer & Tagger</div>
-                        <div class="service-footer">
-                            <div class="service-url">:9999</div>
-                        </div>
-                    </a>
-                    <div class="service-footer">
-                        <button class="action-btn scan-btn" onclick="tagStash()" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-tag"></i> Tag
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('stash')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('stash')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8098" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-book"></i>
-                            <span class="service-name">Dictionary</span>
-                        </div>
-                        <div class="service-description">Word Definitions & Lookup</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8098</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('dictionary')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('dictionary')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8014" class="service-link" target="_blank" rel="noreferrer noopener">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-clock-rotate-left"></i>
-                            <span class="service-name">Dagu</span>
-                        </div>
-                        <div class="service-description">Scheduled Jobs &amp; Workflows</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8014</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('dagu')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('dagu')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="https://dockerhost.tailb8b575.ts.net" class="service-link" target="_blank" rel="noreferrer noopener">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-shield-halved"></i>
-                            <span class="service-name">Vaultwarden</span>
-                        </div>
-                        <div class="service-description">Password Vault (Tailscale Tunnel)</div>
-                        <div class="service-footer">
-                            <div class="service-url">tailnet :443</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('vaultwarden')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('vaultwarden')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8053/admin" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-hand"></i>
-                            <span class="service-name">Pi-hole</span>
-                        </div>
-                        <div class="service-description">Network-wide Ad & Site Blocking (DNS)</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8053</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('pihole')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('pihole')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8015" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-comments"></i>
-                            <span class="service-name">Office</span>
-                        </div>
-                        <div class="service-description">Mattermost &mdash; chat with the project agents</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8015</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('office')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('office')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="http://100.69.184.113:8008" class="service-link" target="_blank">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-gamepad"></i>
-                            <span class="service-name">PokeVault</span>
-                        </div>
-                        <div class="service-description">Pokemon & TCG Collection Tracker</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8008</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="restartContainer('pokevault')">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="recreateContainer('pokevault')">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <div class="service-link" style="cursor:default;">
-                        <div class="service-header">
-                            <i class="service-icon fas fa-share-alt"></i>
-                            <span class="service-name">Fileshare</span>
-                        </div>
-                        <div class="service-description">Disposable Quick-Tunnel file sharing</div>
-                        <div class="service-footer">
-                            <div class="service-url" id="fileshare-url-badge" style="font-size:0.65rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
-                        </div>
-                    </div>
-                    <div class="service-footer">
-                        <button class="action-btn download-btn" id="fileshare-copy-btn" onclick="copyShareUrl()" disabled title="Copy share URL" style="margin-bottom: 0.75rem;">
-                            <i class="fas fa-copy"></i> Copy
-                        </button>
-                    </div>
-                    <div class="service-actions">
-                        <button class="action-btn share-btn" onclick="openShareModal()">
-                            <i class="fas fa-share-alt"></i> Share
-                        </button>
-                        <button class="action-btn stop-share-btn" id="fileshare-stop-btn" onclick="stopShare()" disabled>
-                            <i class="fas fa-stop"></i> Stop
-                        </button>
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <a href="/" class="service-link">
-                        <div class="service-header">
-                            <i class="service-icon fab fa-docker"></i>
-                            <span class="service-name">Dashboard</span>
-                        </div>
-                        <div class="service-description">This Dashboard</div>
-                        <div class="service-footer">
-                            <div class="service-url">:8001</div>
-                        </div>
-                    </a>
-                    <div class="service-actions">
-                        <button class="action-btn restart-btn" onclick="selfRestart()">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button class="action-btn recreate-btn" onclick="selfRecreate()">
-                            <i class="fas fa-hammer"></i> Recreate
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
+        <div id="svc-root"><div class="svc-empty">Loading services…</div></div>
     </div>
 
     <!-- Share modal -->
@@ -2105,13 +1499,15 @@
                 const stopBtn = document.getElementById('fileshare-stop-btn');
                 if (d.running) {
                     _shareUrl = d.url;
-                    badge.textContent = d.url ? d.url.replace('http://', '') : 'tunnel starting…';
-                    badge.style.color = '#CE93D8';
+                    if (badge) {
+                        badge.textContent = d.url ? d.url.replace('http://', '') : 'tunnel starting…';
+                        badge.style.color = '#CE93D8';
+                    }
                     if (copyBtn) { copyBtn.disabled = !d.url; }
                     if (stopBtn) { stopBtn.disabled = false; }
                 } else {
                     _shareUrl = null;
-                    badge.textContent = '';
+                    if (badge) badge.textContent = '';
                     if (copyBtn) { copyBtn.disabled = true; }
                     if (stopBtn) { stopBtn.disabled = true; }
                 }
@@ -2320,43 +1716,134 @@
             icon.className = li.classList.contains('collapsed') ? 'toggle-icon fas fa-chevron-right' : 'toggle-icon fas fa-chevron-down';
         }
 
-        // ── Card URL health dots ─────────────────────────────────────────
-        (function initCardUrlHealth() {
-            const links = [...document.querySelectorAll('.service-card > a.service-link')]
-                .filter(a => a.href.includes('://100.69.184.113:'));
-            const dots = new Map();
-            for (const a of links) {
-                const header = a.querySelector('.service-header');
-                if (!header) continue;
-                const dot = document.createElement('span');
-                dot.className = 'url-dot';
-                dot.title = 'Page check: pending';
-                header.appendChild(dot);
-                dots.set(a.getAttribute('href'), { dot, card: a.closest('.service-card') });
+        // ── Service list (#6) ────────────────────────────────────────────
+        // Rendered from /api/services: static/services.json merged with container state,
+        // the page check and running preview containers (dashboard.preview.* labels).
+        (function initServices() {
+            const root = document.getElementById('svc-root');
+            const summary = document.getElementById('svc-summary');
+            const search = document.getElementById('svc-search');
+            let data = null;
+
+            const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+                c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+            function health(s) {
+                const c = s.container || {}, p = s.page;
+                if (c.state === 'stopped' || c.state === 'missing') return ['down', `Container ${c.name}: ${c.state}`];
+                if (p && !p.ok) return ['down', `Page down: ${p.error || 'HTTP ' + p.code}`];
+                if (c.health === 'unhealthy') return ['warn', `Container ${c.name}: unhealthy`];
+                if (c.health === 'starting') return ['warn', `Container ${c.name}: starting`];
+                if (p && p.ok) return ['up', `Page up: HTTP ${p.code}, ${p.ms} ms`];
+                if (c.state === 'running') return ['up', `Container ${c.name}: ${c.status}`];
+                return ['', 'Not checked'];
             }
 
-            function apply(results) {
-                for (const [href, { dot, card }] of dots) {
-                    const r = results[href];
-                    if (!r) continue;
-                    dot.className = `url-dot ${r.ok ? 'up' : 'down'}`;
-                    card.classList.toggle('url-down', !r.ok);
-                    const checked = new Date(r.ts * 1000).toLocaleTimeString();
-                    dot.title = r.ok
-                        ? `Page up: HTTP ${r.code}, ${r.ms} ms (checked ${checked})`
-                        : `Page down: ${r.error} (checked ${checked})`;
+            function extraChip(x) {
+                const label = x.label ? esc(x.label) : '';
+                const icon = `<i class="${esc(x.icon)}"></i>`;
+                const title = esc(x.title || x.label || '');
+                const id = x.id ? ` id="${esc(x.id)}"` : '';
+                if (x.href) return `<a class="chip"${id} href="${esc(x.href)}" target="_blank" rel="noopener" title="${title}">${icon} ${label}</a>`;
+                return `<button class="chip"${id} onclick="${esc(x.onclick)}" title="${title}"${x.disabled ? ' disabled' : ''}>${icon} ${label}</button>`;
+            }
+
+            function row(s) {
+                const [state, why] = health(s);
+                const target = s.url && s.url.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
+                const main = s.url
+                    ? `<a class="svc-main" href="${esc(s.url)}"${target}>`
+                    : `<div class="svc-main">`;
+                const previews = (s.previews || []).map(p =>
+                    `<a class="chip preview" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(p.container)} on :${p.port}">` +
+                    `<i class="fas fa-flask"></i> ${p.pr != null ? 'PR #' + p.pr : 'preview'}</a>`).join('');
+                const menu = s.controls === 'container'
+                    ? `<button onclick="restartContainer('${esc(s.key)}')"><i class="fas fa-redo"></i> Restart</button>
+                       <button onclick="recreateContainer('${esc(s.key)}')"><i class="fas fa-hammer"></i> Recreate</button>`
+                    : s.controls === 'self'
+                    ? `<button onclick="selfRestart()"><i class="fas fa-redo"></i> Restart</button>
+                       <button onclick="selfRecreate()"><i class="fas fa-hammer"></i> Recreate</button>` : '';
+                return `<div class="svc-row ${state === 'down' ? 'down' : ''}" data-key="${esc(s.key)}">
+                    <span class="svc-dot ${state}" title="${esc(why)}"></span>
+                    <i class="svc-icon ${esc(s.icon)}"></i>
+                    ${main}
+                        <div class="svc-name">${esc(s.name)}</div>
+                        <div class="svc-desc">${esc(s.description || '')}</div>
+                    ${s.url ? '</a>' : '</div>'}
+                    <div class="svc-chips">
+                        ${previews}
+                        ${(s.extras || []).map(extraChip).join('')}
+                        ${s.url_label ? `<span class="chip port">${esc(s.url_label)}</span>` : ''}
+                        ${s.owner ? `<span class="chip owner" title="Owner">@${esc(s.owner)}</span>` : ''}
+                    </div>
+                    ${menu ? `<button class="svc-menu-btn" title="Container controls" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
+                    <div class="svc-menu" id="svc-menu-${esc(s.key)}">${menu}<div class="hint">${esc((s.container || {}).name || '')}</div></div>` : ''}
+                </div>`;
+            }
+
+            function matches(s, q) {
+                if (!q) return true;
+                const hay = [s.name, s.description, s.url_label, s.owner, s.key, s.category,
+                             ...(s.previews || []).map(p => 'pr' + p.pr)].join(' ').toLowerCase();
+                return q.split(/\s+/).every(t => hay.includes(t));
+            }
+
+            function group(title, icon, items) {
+                if (!items.length) return '';
+                return `<div class="svc-group">
+                    <div class="svc-group-title"><i class="${esc(icon)}"></i> ${esc(title)} <span class="count">${items.length}</span></div>
+                    <div class="svc-list">${items.map(row).join('')}</div></div>`;
+            }
+
+            function render() {
+                if (!data) return;
+                const q = search.value.trim().toLowerCase();
+                const all = data.services;
+                const shown = all.filter(s => matches(s, q));
+                const states = all.map(s => health(s)[0]);
+                const nPreviews = all.reduce((n, s) => n + (s.previews || []).length, 0);
+                summary.innerHTML = `<span><b>${all.length}</b> services</span>
+                    <span><b>${states.filter(x => x === 'up').length}</b> up</span>
+                    ${states.includes('down') ? `<span style="color:#ef4444"><b>${states.filter(x => x === 'down').length}</b> down</span>` : ''}
+                    ${states.includes('warn') ? `<span style="color:#f59e0b"><b>${states.filter(x => x === 'warn').length}</b> degraded</span>` : ''}
+                    ${nPreviews ? `<span style="color:#e9d5ff"><b>${nPreviews}</b> preview${nPreviews > 1 ? 's' : ''}</span>` : ''}`;
+
+                // Pinned on top: anything down/degraded, and anything with a preview waiting for review.
+                const attention = shown.filter(s => ['down', 'warn'].includes(health(s)[0]) || (s.previews || []).length);
+                let out = group('Needs attention', 'fas fa-triangle-exclamation', attention);
+                for (const c of data.categories) {
+                    out += group(c.name, c.icon, shown.filter(s => s.category === c.name && !attention.includes(s))
+                                                    .sort((a, b) => a.name.localeCompare(b.name)));
                 }
+                if ((data.unmatched_previews || []).length) {
+                    out += group('Previews without a service', 'fas fa-flask', data.unmatched_previews.map(p => ({
+                        key: p.container, name: p.container, icon: 'fas fa-flask', description: `label project "${p.project}" matches no service`,
+                        url: p.url, url_label: ':' + p.port, previews: [], extras: [], container: {}, page: null })));
+                }
+                root.innerHTML = out || '<div class="svc-empty">No services match.</div>';
+                if (typeof checkShareStatus === 'function') checkShareStatus();
             }
 
-            function fetchHealth() {
-                fetch('/api/cards/health')
+            window.toggleSvcMenu = function (ev, key) {
+                ev.stopPropagation();
+                const m = document.getElementById('svc-menu-' + key);
+                const wasOpen = m.classList.contains('open');
+                document.querySelectorAll('.svc-menu.open').forEach(x => x.classList.remove('open'));
+                if (!wasOpen) m.classList.add('open');
+            };
+            document.addEventListener('click', () =>
+                document.querySelectorAll('.svc-menu.open').forEach(x => x.classList.remove('open')));
+
+            function load() {
+                if (document.querySelector('.svc-menu.open')) return;  // don't redraw under an open menu
+                fetch('/api/services')
                     .then(r => r.ok ? r.json() : Promise.reject(r.status))
-                    .then(apply)
-                    .catch(() => {});
+                    .then(d => { data = d; render(); })
+                    .catch(() => { if (!data) root.innerHTML = '<div class="svc-empty">Could not load /api/services.</div>'; });
             }
-
-            fetchHealth();
-            setInterval(fetchHealth, 60_000);
+            search.addEventListener('input', render);
+            load();
+            setInterval(load, 30_000);
         })();
 
         // ── Health button status color ───────────────────────────────────

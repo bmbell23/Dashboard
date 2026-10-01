@@ -1,0 +1,455 @@
+{
+  "_comment": "The Dashboard service list (#6). One entry per service; the main page renders from this. controls: \"container\" = Restart/Recreate via CONTAINERS[key] in app.py, \"self\" = the Dashboard itself. preview_names: extra dashboard.preview.project label values that belong to this service.",
+  "categories": [
+    {
+      "name": "Projects",
+      "icon": "fas fa-hammer"
+    },
+    {
+      "name": "Media & Reading",
+      "icon": "fas fa-photo-video"
+    },
+    {
+      "name": "Downloads",
+      "icon": "fas fa-download"
+    },
+    {
+      "name": "Tools",
+      "icon": "fas fa-tools"
+    },
+    {
+      "name": "Infrastructure",
+      "icon": "fas fa-server"
+    }
+  ],
+  "services": [
+    {
+      "key": "greatreads-prod",
+      "name": "GreatReads",
+      "icon": "fas fa-book",
+      "description": "Book Tracking",
+      "url": "http://100.69.184.113:8090/greatreads/tbr",
+      "url_label": ":8090/greatreads/tbr",
+      "category": "Projects",
+      "owner": "ginger",
+      "controls": "container",
+      "preview_names": [
+        "greatreads"
+      ],
+      "extras": [
+        {
+          "label": null,
+          "icon": "fas fa-download",
+          "kind": "apk",
+          "href": "http://100.69.184.113:8090/ereader.apk",
+          "title": "Download Android APK"
+        }
+      ]
+    },
+    {
+      "key": "libby-web",
+      "name": "Libby Browser",
+      "icon": "fas fa-book-medical",
+      "description": "Library Ebook Search & Borrow",
+      "url": "http://100.69.184.113:5007",
+      "url_label": ":5007",
+      "category": "Projects",
+      "owner": "lacey",
+      "controls": "container",
+      "preview_names": [
+        "libby"
+      ]
+    },
+    {
+      "key": "lifeforge",
+      "name": "LifeForge",
+      "icon": "fas fa-bolt",
+      "description": "Journaling & Habit Tracking",
+      "url": "http://100.69.184.113:8004",
+      "url_label": ":8004",
+      "category": "Projects",
+      "owner": "luna",
+      "controls": "container",
+      "extras": [
+        {
+          "label": null,
+          "icon": "fas fa-download",
+          "kind": "apk",
+          "href": "http://100.69.184.113:8004/download/lifeforge.apk",
+          "title": "Download Android APK"
+        }
+      ]
+    },
+    {
+      "key": "artforge",
+      "name": "ArtForge",
+      "icon": "fas fa-palette",
+      "description": "Art & Drawing Projects",
+      "url": "http://100.69.184.113:8003",
+      "url_label": ":8003",
+      "category": "Projects",
+      "owner": "aria",
+      "controls": "container"
+    },
+    {
+      "key": "wordforge",
+      "name": "WordForge",
+      "icon": "fas fa-pen-fancy",
+      "description": "Creative Writing",
+      "url": "http://100.69.184.113:8002",
+      "url_label": ":8002",
+      "category": "Projects",
+      "owner": "winter",
+      "controls": "container"
+    },
+    {
+      "key": "chess",
+      "name": "Chess Stats",
+      "icon": "fas fa-chess-knight",
+      "description": "chess.com Tracking & Charts",
+      "url": "http://100.69.184.113:8011",
+      "url_label": ":8011",
+      "category": "Projects",
+      "owner": "callie",
+      "controls": "container"
+    },
+    {
+      "key": "booknews",
+      "name": "NerdNews",
+      "icon": "fas fa-newspaper",
+      "description": "News Aggregator & Reports",
+      "url": "http://100.69.184.113:8010",
+      "url_label": ":8010",
+      "category": "Projects",
+      "owner": "nova",
+      "controls": "container",
+      "preview_names": [
+        "nerdnews"
+      ]
+    },
+    {
+      "key": "funforge",
+      "name": "FunForge",
+      "icon": "fas fa-child",
+      "description": "Kids' Music, Stories, Videos & Games",
+      "url": "http://100.69.184.113:8006",
+      "url_label": ":8006",
+      "category": "Projects",
+      "owner": "felicia",
+      "controls": "container"
+    },
+    {
+      "key": "pokevault",
+      "name": "PokeVault",
+      "icon": "fas fa-gamepad",
+      "description": "Pokemon & TCG Collection Tracker",
+      "url": "http://100.69.184.113:8008",
+      "url_label": ":8008",
+      "category": "Projects",
+      "owner": "poppy",
+      "controls": "container"
+    },
+    {
+      "key": "dictionary",
+      "name": "Dictionary",
+      "icon": "fas fa-book",
+      "description": "Word Definitions & Lookup",
+      "url": "http://100.69.184.113:8098",
+      "url_label": ":8098",
+      "category": "Projects",
+      "owner": "daphne",
+      "controls": "container"
+    },
+    {
+      "key": "mealforge",
+      "name": "MealForge",
+      "icon": "fas fa-utensils",
+      "description": "Recipes & Meal Planning",
+      "url": "http://100.69.184.113:8009",
+      "url_label": ":8009",
+      "category": "Projects",
+      "owner": "maisie",
+      "controls": "container"
+    },
+    {
+      "key": "webforge",
+      "name": "WebForge",
+      "icon": "fas fa-globe",
+      "description": "Custom Browser (releases)",
+      "url": "http://100.69.184.113:8012",
+      "url_label": ":8012",
+      "category": "Projects",
+      "owner": "willow",
+      "controls": "container"
+    },
+    {
+      "key": "jellyfin",
+      "name": "Jellyfin",
+      "icon": "fas fa-film",
+      "description": "Media Server",
+      "url": "http://100.69.184.113:8096",
+      "url_label": ":8096",
+      "category": "Media & Reading",
+      "owner": "dakota",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Scan",
+          "icon": "fas fa-sync",
+          "kind": "scan",
+          "onclick": "scanJellyfin()"
+        }
+      ]
+    },
+    {
+      "key": "immich",
+      "name": "Immich",
+      "icon": "fas fa-images",
+      "description": "Photo & Video Management",
+      "url": "http://100.69.184.113:2283",
+      "url_label": ":2283",
+      "category": "Media & Reading",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "audiobookshelf",
+      "name": "Audiobookshelf",
+      "icon": "fas fa-headphones",
+      "description": "Audiobook & Podcast Server",
+      "url": "http://100.69.184.113:13378",
+      "url_label": ":13378",
+      "category": "Media & Reading",
+      "owner": "dakota",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Scan",
+          "icon": "fas fa-sync",
+          "kind": "scan",
+          "onclick": "scanAudiobookshelf()"
+        }
+      ]
+    },
+    {
+      "key": "calibre",
+      "name": "Calibre",
+      "icon": "fas fa-book-reader",
+      "description": "Ebook Library & DeDRM",
+      "url": "https://100.69.184.113:8084",
+      "url_label": ":8084 / :8083",
+      "category": "Media & Reading",
+      "owner": "dakota",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Web",
+          "icon": "fas fa-globe",
+          "kind": "link",
+          "href": "http://100.69.184.113:8083",
+          "title": "Calibre-Web :8083"
+        }
+      ]
+    },
+    {
+      "key": "romm",
+      "name": "Romm",
+      "icon": "fas fa-gamepad",
+      "description": "ROM Management",
+      "url": "http://100.69.184.113:8080",
+      "url_label": ":8080",
+      "category": "Media & Reading",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "qbittorrent",
+      "name": "qBittorrent",
+      "icon": "fas fa-cloud-download-alt",
+      "description": "Torrent Client (VPN Protected)",
+      "url": "http://100.69.184.113:2285/",
+      "url_label": ":2285",
+      "category": "Downloads",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "jackett",
+      "name": "Jackett",
+      "icon": "fas fa-search",
+      "description": "Torrent Indexer (VPN Protected)",
+      "url": "http://100.69.184.113:9117",
+      "url_label": ":9117",
+      "category": "Downloads",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "ytdlp",
+      "name": "YT-DLP Web",
+      "icon": "fab fa-youtube",
+      "description": "YouTube Downloader",
+      "url": "/yt-dlp.html",
+      "url_label": ":8998",
+      "category": "Downloads",
+      "owner": "daisy",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Download",
+          "icon": "fas fa-download",
+          "kind": "download",
+          "onclick": "downloadYouTube()"
+        }
+      ]
+    },
+    {
+      "key": "gallery-dl",
+      "name": "Gallery-DL",
+      "icon": "fas fa-images",
+      "description": "Image Gallery Downloader",
+      "url": "/gallery-dl.html",
+      "url_label": "400+ Sites",
+      "category": "Downloads",
+      "owner": "daisy",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Download",
+          "icon": "fas fa-download",
+          "kind": "download",
+          "onclick": "downloadGallery()"
+        }
+      ]
+    },
+    {
+      "key": "deemix",
+      "name": "Deemix",
+      "icon": "fas fa-music",
+      "description": "Music Downloader (Deezer)",
+      "url": "http://100.69.184.113:6595",
+      "url_label": ":6595",
+      "category": "Downloads",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "trilium",
+      "name": "Trilium Notes",
+      "icon": "fas fa-book-open",
+      "description": "Personal Knowledge Base",
+      "url": "http://100.69.184.113:8085",
+      "url_label": ":8085",
+      "category": "Tools",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "stash",
+      "name": "Stash",
+      "icon": "fas fa-tags",
+      "description": "Media Organizer & Tagger",
+      "url": "http://100.69.184.113:9999",
+      "url_label": ":9999",
+      "category": "Tools",
+      "owner": "dakota",
+      "controls": "container",
+      "extras": [
+        {
+          "label": "Tag",
+          "icon": "fas fa-tag",
+          "kind": "scan",
+          "onclick": "tagStash()"
+        }
+      ]
+    },
+    {
+      "key": "vaultwarden",
+      "name": "Vaultwarden",
+      "icon": "fas fa-shield-halved",
+      "description": "Password Vault (Tailscale Tunnel)",
+      "url": "https://dockerhost.tailb8b575.ts.net",
+      "url_label": "tailnet :443",
+      "category": "Tools",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "fileshare",
+      "name": "Fileshare",
+      "icon": "fas fa-share-alt",
+      "description": "Disposable Quick-Tunnel file sharing",
+      "category": "Tools",
+      "owner": "daisy",
+      "extras": [
+        {
+          "label": "Copy",
+          "icon": "fas fa-copy",
+          "kind": "download",
+          "onclick": "copyShareUrl()",
+          "title": "Copy share URL",
+          "id": "fileshare-copy-btn",
+          "disabled": true
+        },
+        {
+          "label": "Share",
+          "icon": "fas fa-share-alt",
+          "kind": "share",
+          "onclick": "openShareModal()"
+        },
+        {
+          "label": "Stop",
+          "icon": "fas fa-stop",
+          "kind": "stop-share",
+          "onclick": "stopShare()",
+          "id": "fileshare-stop-btn",
+          "disabled": true
+        }
+      ]
+    },
+    {
+      "key": "office",
+      "name": "Office",
+      "icon": "fas fa-comments",
+      "description": "Mattermost — chat with the project agents",
+      "url": "http://100.69.184.113:8015",
+      "url_label": ":8015",
+      "category": "Infrastructure",
+      "owner": "bianca",
+      "controls": "container"
+    },
+    {
+      "key": "dagu",
+      "name": "Dagu",
+      "icon": "fas fa-clock-rotate-left",
+      "description": "Scheduled Jobs & Workflows",
+      "url": "http://100.69.184.113:8014",
+      "url_label": ":8014",
+      "category": "Infrastructure",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "pihole",
+      "name": "Pi-hole",
+      "icon": "fas fa-hand",
+      "description": "Network-wide Ad & Site Blocking (DNS)",
+      "url": "http://100.69.184.113:8053/admin",
+      "url_label": ":8053",
+      "category": "Infrastructure",
+      "owner": "dakota",
+      "controls": "container"
+    },
+    {
+      "key": "dashboard",
+      "name": "Dashboard",
+      "icon": "fab fa-docker",
+      "description": "This Dashboard",
+      "url": "/",
+      "url_label": ":8001",
+      "category": "Infrastructure",
+      "owner": "daisy",
+      "controls": "self"
+    }
+  ]
+}

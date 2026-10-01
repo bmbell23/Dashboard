@@ -84,6 +84,8 @@ CONTAINERS = {
     'lifeforge': {'name': 'lifeforge_app', 'service': 'lifeforge', 'compose_dir': '/home/brandon/projects/LifeForge'},
     'artforge': {'name': 'artforge', 'service': 'artforge', 'compose_dir': '/home/brandon/projects/ArtForge'},
     'wordforge': {'name': 'wordforge', 'service': 'wordforge', 'compose_dir': '/home/brandon/projects/WordForge'},
+    'mealforge': {'name': 'mealforge_app', 'service': 'mealforge', 'compose_dir': '/home/brandon/projects/MealForge'},
+    'webforge': {'name': 'webforge_releases', 'service': 'webforge_releases', 'compose_dir': '/home/brandon/projects/WebForge'},
 
     # Reading
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
@@ -1861,21 +1863,26 @@ threading.Thread(target=_metrics_loop, daemon=True, name='metrics-collector').st
 # GreatReads reader on :8090) are not containers at all.
 # =============================================================================
 
-_CARD_HREF_RE = re.compile(r'href="(https?)://100\.69\.184\.113:(\d+)([^"]*)"\s+class="service-link"')
+_CARD_HREF_RE = re.compile(r'https?://100\.69\.184\.113:\d+')
+SERVICES_FILE = os.path.join(app.static_folder, 'services.json')
+
+
+def _load_services() -> dict:
+    """The service registry (static/services.json): categories + one entry per service (#6)."""
+    try:
+        with open(SERVICES_FILE) as f:
+            return json.load(f)
+    except Exception as ex:
+        logger.warning(f'Service registry read failed: {ex}')
+        return {'categories': [], 'services': []}
 _card_health: dict = {}
 _card_health_lock = threading.Lock()
 
 
 def _card_urls() -> list[str]:
-    """Card links that point at this server, read from the live index.html."""
-    try:
-        with open(os.path.join(app.static_folder, 'index.html')) as f:
-            html = f.read()
-    except OSError as ex:
-        logger.warning(f'Card URL read failed: {ex}')
-        return []
-    return sorted({f'{scheme}://100.69.184.113:{port}{path}'
-                   for scheme, port, path in _CARD_HREF_RE.findall(html)})
+    """Service URLs that point at this server, from the service registry."""
+    return sorted({svc['url'] for svc in _load_services()['services']
+                   if _CARD_HREF_RE.match(svc.get('url') or '')})
 
 
 def _probe_card_url(href: str) -> dict:
@@ -3431,8 +3438,6 @@ _start_jellyfin_watcher()
 
 PREVIEW_HOST = os.environ.get('PREVIEW_HOST', '100.69.184.113')
 PREVIEW_LABEL = 'dashboard.preview'
-# Label values agents may reasonably use that differ from the card key.
-PREVIEW_PROJECT_ALIASES = {'greatreads': 'greatreads-prod', 'nerdnews': 'booknews', 'libby': 'libby-web'}
 
 
 def _parse_preview(labels: dict, name: str, status: str, created: str) -> dict | None:
@@ -3446,7 +3451,7 @@ def _parse_preview(labels: dict, name: str, status: str, created: str) -> dict |
     if not path.startswith('/'):
         path = '/' + path
     return {
-        'project': PREVIEW_PROJECT_ALIASES.get(project, project),
+        'project': project,
         'pr': int(pr) if pr.isdigit() else None,
         'port': int(port),
         'url': f'http://{PREVIEW_HOST}:{port}{path}',
@@ -3456,31 +3461,94 @@ def _parse_preview(labels: dict, name: str, status: str, created: str) -> dict |
     }
 
 
-@app.route('/api/previews')
-def list_previews():
-    """Running preview containers, grouped by card key: {"previews": {"funforge": [...]}}."""
+def _collect_previews() -> list[dict]:
+    """Every running container carrying dashboard.preview.* labels."""
     code, out, err = _run_cmd(['docker', 'ps', '-q', '--filter', f'label={PREVIEW_LABEL}.project'], timeout=10)
     if code != 0:
-        return jsonify({'error': err or 'docker ps failed'}), 500
+        raise RuntimeError(err or 'docker ps failed')
     ids = out.split()
+    if not ids:
+        return []
+    code, out, err = _run_cmd(['docker', 'inspect', '--format',
+                               '{{json .Config.Labels}}\t{{.Name}}\t{{.State.Status}}\t{{.Created}}', *ids],
+                              timeout=10)
+    if code != 0:
+        raise RuntimeError(err or 'docker inspect failed')
+    entries = []
+    for line in out.splitlines():
+        try:
+            labels_json, name, status, created = line.split('\t')
+            entry = _parse_preview(json.loads(labels_json) or {}, name.lstrip('/'), status, created)
+        except ValueError:
+            continue
+        if entry:
+            entries.append(entry)
+    entries.sort(key=lambda e: (e['pr'] is None, e['pr'] or 0))
+    return entries
+
+
+def _preview_owner_key(services: list[dict]) -> dict[str, str]:
+    """Label value -> service key: the key itself, the service name, and any preview_names."""
+    owner = {}
+    for svc in services:
+        for n in [svc['key'], svc['name'].lower(), *svc.get('preview_names', [])]:
+            owner.setdefault(n.lower(), svc['key'])
+    return owner
+
+
+@app.route('/api/previews')
+def list_previews():
+    """Running preview containers, grouped by service key: {"previews": {"funforge": [...]}}."""
+    try:
+        entries = _collect_previews()
+    except RuntimeError as ex:
+        return jsonify({'error': str(ex)}), 500
+    owner = _preview_owner_key(_load_services()['services'])
     grouped: dict[str, list] = {}
-    if ids:
-        code, out, err = _run_cmd(['docker', 'inspect', '--format',
-                                   '{{json .Config.Labels}}\t{{.Name}}\t{{.State.Status}}\t{{.Created}}', *ids],
-                                  timeout=10)
-        if code != 0:
-            return jsonify({'error': err or 'docker inspect failed'}), 500
-        for line in out.splitlines():
-            try:
-                labels_json, name, status, created = line.split('\t')
-                entry = _parse_preview(json.loads(labels_json) or {}, name.lstrip('/'), status, created)
-            except ValueError:
-                continue
-            if entry:
-                grouped.setdefault(entry['project'], []).append(entry)
-    for entries in grouped.values():
-        entries.sort(key=lambda e: (e['pr'] is None, e['pr'] or 0))
+    for e in entries:
+        grouped.setdefault(owner.get(e['project'], e['project']), []).append(e)
     return jsonify({'previews': grouped})
+
+
+@app.route('/api/services')
+def list_services():
+    """The registry merged with live state: container status, page check, running previews."""
+    reg = _load_services()
+    services = reg['services']
+    code, out, _ = _run_cmd(['docker', 'ps', '-a', '--format', '{{.Names}}|{{.Status}}'], timeout=10)
+    live = dict(line.split('|', 1) for line in out.splitlines() if '|' in line) if code == 0 else {}
+    with _card_health_lock:
+        pages = dict(_card_health)
+    try:
+        previews, preview_error = _collect_previews(), None
+    except RuntimeError as ex:
+        previews, preview_error = [], str(ex)
+    owner = _preview_owner_key(services)
+    by_key: dict[str, list] = {}
+    unmatched = []
+    for p in previews:
+        key = owner.get(p['project'])
+        (by_key.setdefault(key, []) if key else unmatched).append(p)
+
+    out_services = []
+    for svc in services:
+        item = dict(svc)
+        ctr = CONTAINERS.get(svc['key'], {}).get('name') if svc.get('controls') == 'container' else None
+        if svc.get('controls') == 'self':
+            ctr = 'dashboard'
+        raw = live.get(ctr, '') if ctr else ''
+        item['container'] = {
+            'name': ctr,
+            'state': ('running' if raw.lower().startswith('up') else 'stopped' if raw else 'missing') if ctr else None,
+            'health': ('unhealthy' if '(unhealthy)' in raw else 'healthy' if '(healthy)' in raw
+                       else 'starting' if '(starting)' in raw else None),
+            'status': raw or None,
+        }
+        item['page'] = pages.get(svc.get('url'))
+        item['previews'] = by_key.get(svc['key'], [])
+        out_services.append(item)
+    return jsonify({'categories': reg.get('categories', []), 'services': out_services,
+                    'unmatched_previews': unmatched, 'preview_error': preview_error})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8001, debug=False)
