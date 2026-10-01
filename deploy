@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Rebuild and restart the Dashboard from this checkout, then wait until it answers (#22).
+# app.py and static/ are baked into the image (compose.yml: build: .), so every change needs --build.
+# Run from the main clone. bin/ship-pr calls it after a merge (agent-bus#124).
+set -euo pipefail
+cd "$(dirname "$0")"
+
+docker compose up -d --build
+
+for _ in $(seq 1 45); do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 localhost:8001/)" = 200 ]; then
+        echo "deploy: dashboard up on :8001 ($(cat version.txt 2>/dev/null || echo 'no version'))"
+        exit 0
+    fi
+    sleep 2
+done
+echo "deploy: dashboard did not answer 200 on :8001 within 90 s" >&2
+docker logs --tail 20 dashboard >&2 || true
+exit 1
