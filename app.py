@@ -29,6 +29,16 @@ CORS(app)  # Enable CORS for frontend requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Review copy of a PR (agent-bus README § "Preview containers"): read-only. Every non-GET
+# request is refused, so a preview can never restart, recreate, download or share anything.
+PREVIEW_MODE = os.environ.get('PREVIEW_MODE') == '1'
+
+
+@app.before_request
+def _preview_read_only():
+    if PREVIEW_MODE and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        return jsonify({'error': 'This is a read-only PR preview; actions are disabled.'}), 403
+
 # ── Download paths config ──────────────────────────────────────────────────────
 _PATHS_FILE = '/home/brandon/projects/Dashboard/download_paths.json'
 _PATHS_DEFAULT = {
@@ -3551,5 +3561,5 @@ def list_services():
                     'unmatched_previews': unmatched, 'preview_error': preview_error})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8001, debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', '8001')), debug=False)
 
