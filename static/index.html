@@ -882,8 +882,8 @@
             font-weight: 700; margin: 0 0 .5rem .25rem; display: flex; gap: .5rem; align-items: center; }
         .svc-group-title .count { color: var(--light-gray); font-weight: 400; }
         .svc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: .4rem; }
-        .svc-row { display: flex; align-items: center; gap: .75rem; background: var(--dark-gray); border: 1px solid var(--medium-gray);
-            border-radius: .55rem; padding: .55rem .75rem; min-height: 3.1rem; position: relative; }
+        .svc-row { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .75rem; background: var(--dark-gray); border: 1px solid var(--medium-gray);
+            border-radius: .55rem; padding: .55rem 2.4rem .55rem .75rem; min-height: 3.1rem; position: relative; }
         .svc-row:hover { border-color: var(--dark-orange); }
         .svc-row.down { border-color: #7f1d1d; background: linear-gradient(90deg, rgba(239,68,68,.12), var(--dark-gray) 40%); }
         .svc-dot { width: .6rem; height: .6rem; border-radius: 50%; flex: 0 0 auto; background: #6b7280; }
@@ -891,10 +891,10 @@
         .svc-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
         .svc-dot.down { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
         .svc-icon { width: 1.4rem; text-align: center; color: var(--primary-orange); flex: 0 0 auto; }
-        .svc-main { flex: 1 1 auto; min-width: 0; text-decoration: none; color: inherit; }
+        .svc-main { flex: 1 1 10rem; min-width: 10rem; text-decoration: none; color: inherit; }
         .svc-name { color: var(--white); font-weight: 600; font-size: .95rem; }
         .svc-desc { color: var(--light-gray); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .svc-chips { display: flex; gap: .35rem; align-items: center; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+        .svc-chips { display: flex; gap: .35rem; align-items: center; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
         .chip { font-size: .72rem; padding: .15rem .5rem; border-radius: 999px; border: 1px solid var(--medium-gray); color: var(--light-gray);
             text-decoration: none; white-space: nowrap; background: transparent; cursor: default; font-family: inherit; }
         .chip.port { font-family: ui-monospace, monospace; }
@@ -907,7 +907,8 @@
         .chip-pair .chip.preview:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
         .chip-pair .pr-link { border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: .15rem .45rem; }
         .chip.owner { color: #9ca3af; }
-        .svc-menu-btn { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: .25rem .4rem; border-radius: .35rem; }
+        .svc-menu-btn { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: .25rem .4rem; border-radius: .35rem;
+            position: absolute; top: .7rem; right: .4rem; }
         .svc-menu-btn:hover { color: var(--white); background: var(--medium-gray); }
         .svc-menu { position: absolute; right: .5rem; top: 2.6rem; z-index: 20; background: var(--black); border: 1px solid var(--medium-gray);
             border-radius: .5rem; box-shadow: var(--shadow); display: none; min-width: 9rem; overflow: hidden; }
@@ -919,9 +920,7 @@
         .svc-empty { color: var(--light-gray); padding: 1rem; }
         @media (max-width: 640px) {
             .svc-list { grid-template-columns: 1fr; }
-            .svc-row { flex-wrap: wrap; padding-right: 2.4rem; }
             .svc-chips { width: 100%; justify-content: flex-start; padding-left: 2.6rem; }
-            .svc-menu-btn { position: absolute; top: .55rem; right: .4rem; }
         }
     </style>
 </head>
@@ -1755,7 +1754,7 @@
                 const [state, why] = health(s);
                 const target = s.url && s.url.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
                 const main = s.url
-                    ? `<a class="svc-main" href="${esc(s.url)}"${target}>`
+                    ? `<a class="svc-main" href="${esc(s.url)}"${target} title="${esc(s.url_label || s.url)}">`
                     : `<div class="svc-main">`;
                 // Each preview: the running review copy, plus the PR on GitHub to approve it.
                 const previews = (s.previews || []).map(p =>
@@ -1780,7 +1779,6 @@
                     <div class="svc-chips">
                         ${previews}
                         ${(s.extras || []).map(extraChip).join('')}
-                        ${s.url_label ? `<span class="chip port">${esc(s.url_label)}</span>` : ''}
                         ${s.owner ? `<span class="chip owner" title="Owner">@${esc(s.owner)}</span>` : ''}
                     </div>
                     ${menu ? `<button class="svc-menu-btn" title="Container controls" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
