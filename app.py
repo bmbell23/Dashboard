@@ -241,40 +241,8 @@ AUTOMATION_CONTAINERS = [
     'dashboard', 'libby-web', 'mullvad-vpn', 'dagu'
 ]
 
-BACKUP_JOB_DEFS = [
-    {
-        'id': 'internal_hourly',
-        'title': 'Hourly internal backup',
-        'script': 'backup-script.sh',
-        'schedule_hint': '0 * * * *',
-        'source_root': '/mnt/boston',
-        'dest_root': '/mnt/backups',
-        'paths': [
-            'docker-backups',
-            'documents',
-            'media/audiobooks',
-            'media/books',
-            'media/games',
-            'media/audiobookshelf',
-            'media/music',
-            'media/other',
-        ],
-        'expected_steps': 8,
-    },
-    {
-        'id': 'external_hourly',
-        'title': 'Hourly external media backup',
-        'script': 'backup-external.sh',
-        'schedule_hint': '5 * * * *',
-        'source_root': '/mnt/boston',
-        'dest_root': '/mnt/external',
-        'paths': [
-            'media/pictures',
-            'media/videos',
-        ],
-        'expected_steps': 2,
-    },
-]
+# The one record of what is backed up, where and why (docker#43). Read-only mount.
+BACKUP_INVENTORY = os.environ.get('BACKUP_INVENTORY', '/home/brandon/projects/docker/docs/backup-inventory.yaml')
 
 _latest_status: dict = {}
 _status_lock = threading.Lock()
@@ -1003,61 +971,6 @@ def _read_backup_log_status_remote(ssh_base: list[str], script_name: str) -> dic
     }
 
 
-def _backup_sync_state(entry: dict | None, running: bool, expected_steps: int, success_count: int | None) -> str:
-    if running:
-        return 'running'
-    note = ((entry or {}).get('status_note') or '').lower()
-    if 'skipped external backup' in note:
-        return 'skipped'
-    if (entry or {}).get('severity') == 'crit':
-        return 'mismatch'
-    if success_count is not None and expected_steps > 0 and success_count >= expected_steps:
-        return 'matched'
-    if 'completed successfully' in note:
-        return 'matched'
-    if (entry or {}).get('last_seen'):
-        return 'unknown'
-    return 'unknown'
-
-
-def _running_backup_progress(ssh_base: list[str] | None, script_name: str, expected_steps: int, log_path: str | None) -> dict:
-    """Return running flag and best-effort progress for backup scripts."""
-    running = False
-    success_count = None
-    progress_pct = None
-
-    if ssh_base:
-        code, out, _ = _run_cmd(ssh_base + [f"pgrep -af {script_name} | grep -v grep"], timeout=8)
-        running = bool(code == 0 and out.strip())
-
-    if ssh_base and log_path:
-        code, content, _ = _run_cmd(ssh_base + [f"tail -n 260 '{log_path}' 2>/dev/null"], timeout=8)
-        if code == 0 and content:
-            success_count = len(re.findall(r'SUCCESS:\s+Backed up:', content))
-            markers = re.findall(r'---\s+Backup\s+(\d+)/(\d+):', content)
-            current_idx = 0
-            total = expected_steps
-            if markers:
-                try:
-                    current_idx = max(int(m[0]) for m in markers)
-                    total = int(markers[-1][1]) if int(markers[-1][1]) > 0 else expected_steps
-                except Exception:
-                    current_idx = 0
-                    total = expected_steps
-
-            if running:
-                done = max(success_count or 0, max(current_idx - 1, 0))
-                progress_pct = int(min(99, (done / max(total, 1)) * 100))
-            elif success_count is not None and expected_steps > 0:
-                progress_pct = int(min(100, (success_count / expected_steps) * 100))
-
-    return {
-        'running': running,
-        'progress_pct': progress_pct,
-        'success_count': success_count,
-    }
-
-
 def _read_vm_backup_overview() -> dict:
     """Best-effort Proxmox VM backup visibility."""
     root_base, _ = _build_proxmox_ssh_base('PROXMOX_ROOT_SSH_USER', 'PROXMOX_ROOT_SSH_PASSWORD', 'root')
@@ -1171,152 +1084,94 @@ def _read_vm_backup_overview() -> dict:
     }
 
 
-def _read_config_backup_overview(cron_entry: dict | None = None) -> dict:
-    """Best-effort Proxmox config backup visibility."""
-    user_base, _ = _build_proxmox_ssh_base()
+_COPY_KEYS = ('primary', 'secondary', 'offsite')
 
-    schedule = (cron_entry or {}).get('schedule') or '0 2 * * *'
-    next_run = (cron_entry or {}).get('next_run') or _cron_next_run('0 2 * * *')
 
-    base_info: dict = {
-        'id': 'proxmox_config',
-        'title': 'Daily Proxmox config backup',
-        'includes': [
-            '/etc/pve → /mnt/boston/proxmox-config-backups (Proxmox config: VMs, storage, network, users)',
-            '/etc/network, /etc/fstab, /etc/hostname, /etc/hosts',
-            '/etc/udev/rules.d (automount rules)',
-            '/home/brandon (scripts, dotfiles)',
-        ],
-        'schedule': schedule,
-        'next_run': next_run,
-        'last_run': None,
-        'running': False,
-        'progress_pct': None,
-        'sync_state': 'unknown',
-        'severity': 'warn',
-        'status_note': 'No config backup archives found.',
-        'log_path': '/mnt/boston/proxmox-config-backups/',
-    }
-
-    if not user_base:
-        base_info['status_note'] = 'Proxmox SSH not configured for config backup visibility.'
-        return base_info
-
-    archives_cmd = "ls -1t /mnt/boston/proxmox-config-backups/proxmox-config-*.tar.gz 2>/dev/null | head -5"
-    c, out, _ = _run_cmd(user_base + [archives_cmd], timeout=12)
-    artifacts = [ln.strip() for ln in out.splitlines() if ln.strip()] if c == 0 else []
-
-    last_run = None
-    if artifacts:
-        c2, ts, _ = _run_cmd(user_base + [f"date -r '{artifacts[0]}' --iso-8601=seconds"], timeout=8)
-        if c2 == 0 and ts:
-            last_run = ts.strip()
-
-    running = False
-    c3, p_out, _ = _run_cmd(user_base + ["pgrep -af 'proxmox-config-backup.sh' | grep -v grep"], timeout=8)
-    if c3 == 0 and p_out.strip():
-        running = True
-
-    total_size_gb = None
-    if artifacts:
-        c4, sz_out, _ = _run_cmd(user_base + ["du -sb /mnt/boston/proxmox-config-backups/ 2>/dev/null | awk '{print $1}'"], timeout=8)
-        if c4 == 0 and sz_out.strip().isdigit():
-            try:
-                total_size_gb = round(int(sz_out.strip()) / 1e9, 1)
-            except Exception:
-                pass
-
-    sync_state = 'unknown'
-    severity = 'warn'
-    if artifacts:
-        sync_state = 'matched'
-        severity = 'ok'
-        c5, age_out, _ = _run_cmd(user_base + [f"echo $(( $(date +%s) - $(date -r '{artifacts[0]}' +%s) ))"], timeout=8)
-        if c5 == 0 and age_out.strip().isdigit():
-            age_hours = int(age_out.strip()) / 3600
-            if age_hours > 25:
-                sync_state = 'skipped'
-                severity = 'warn'
-
-    status_note = 'No config backup archives found.'
-    if running:
-        status_note = 'Config backup is currently running.'
-        severity = 'warn'
-        sync_state = 'running'
-    elif artifacts:
-        count = len(artifacts)
-        size_str = f"~{total_size_gb} GB total" if total_size_gb is not None else "size unknown"
-        status_note = f"Detected {count} config archive(s) ({size_str})."
-
-    return {
-        **base_info,
-        'last_run': last_run,
-        'running': running,
-        'progress_pct': 50 if running else None,
-        'sync_state': sync_state,
-        'severity': severity,
-        'status_note': status_note,
-    }
+def _backup_copy(raw, vm: dict | None) -> dict:
+    """Normalise one copy (primary/secondary/offsite) and attach its live status."""
+    copy = dict(raw) if isinstance(raw, dict) else {'state': 'none' if raw in (None, 'none') else str(raw)}
+    copy['state'] = str(copy.get('state') or 'none')
+    copy['live'] = None
+    dag = copy.get('dag')
+    if dag and copy['state'] != 'planned':
+        run = _dagu_latest_run(dag)
+        if run:
+            label, sev = _DAGU_STATUS.get(run.get('status'), ('unknown', 'warn'))
+            started = _dagu_parse_time(run.get('startedAt'))
+            copy['live'] = {
+                'status': label,
+                'severity': sev,
+                'last_run': started.isoformat() if started else None,
+                'url': f"{DAGU_URL}/dag-runs/{dag}/{run['dagRunId']}" if run.get('dagRunId') else f'{DAGU_URL}/dags/{dag}',
+            }
+        else:
+            copy['live'] = {'status': 'no runs yet', 'severity': 'warn', 'last_run': None, 'url': f'{DAGU_URL}/dags/{dag}'}
+    elif copy.get('method') == 'vzdump' and copy.get('scheduler') == 'proxmox' and vm:
+        copy['live'] = {
+            'status': vm.get('status_note') or '',
+            'severity': vm.get('severity', 'warn'),
+            'last_run': vm.get('last_run'),
+            'url': None,
+        }
+    return copy
 
 
 def _read_backup_overview(automation: dict) -> dict:
-    script_entries = {}
-    for e in automation.get('cron', []):
-        cmd_base = os.path.basename((e.get('command', '').strip().split()[0] if e.get('command') else ''))
-        if cmd_base in ('backup-script.sh', 'backup-external.sh', 'proxmox-config-backup.sh'):
-            script_entries[cmd_base] = e
+    """Backup coverage from the inventory file, with live status for each copy."""
+    try:
+        import yaml
+        with open(BACKUP_INVENTORY) as f:
+            inv = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {'severity': 'warn', 'error': f'Inventory not found: {BACKUP_INVENTORY}', 'entries': [], 'drives': []}
+    except Exception as ex:
+        return {'severity': 'warn', 'error': f'Inventory unreadable: {ex}', 'entries': [], 'drives': []}
 
-    ssh_base, _ = _build_proxmox_ssh_base()
-    jobs = []
-    for cfg in BACKUP_JOB_DEFS:
-        entry = script_entries.get(cfg['script'])
-        includes = [f"{cfg['source_root']}/{p} -> {cfg['dest_root']}/{p}" for p in cfg['paths']]
-        progress = _running_backup_progress(ssh_base, cfg['script'], cfg['expected_steps'], (entry or {}).get('log_path'))
-        sync_state = _backup_sync_state(entry, progress['running'], cfg['expected_steps'], progress['success_count'])
+    vm = None
+    if any((e.get(k) or {}).get('scheduler') == 'proxmox'
+           for e in inv.get('entries') or [] for k in _COPY_KEYS if isinstance(e.get(k), dict)):
+        vm = _read_vm_backup_overview()
 
-        status_note = (entry or {}).get('status_note') or 'No run status detected yet.'
-        if progress['running']:
-            status_note = 'Backup is currently running.'
-
-        jobs.append({
-            'id': cfg['id'],
-            'title': cfg['title'],
-            'script': cfg['script'],
-            'includes': includes,
-            'schedule': (entry or {}).get('schedule') or cfg['schedule_hint'],
-            'next_run': (entry or {}).get('next_run'),
-            'last_run': (entry or {}).get('last_seen'),
-            'running': progress['running'],
-            'progress_pct': progress['progress_pct'],
-            'sync_state': sync_state,
-            'severity': (entry or {}).get('severity', 'warn'),
-            'status_note': status_note,
-            'log_path': (entry or {}).get('log_path'),
+    entries = []
+    for e in inv.get('entries') or []:
+        copies = {k: _backup_copy(e.get(k), vm) for k in _COPY_KEYS}
+        working = sum(1 for c in copies.values()
+                      if c['state'] in ('ok', 'partial') and (c['live'] or {}).get('severity') != 'crit')
+        failed = any((c['live'] or {}).get('severity') == 'crit' for c in copies.values())
+        priority = e.get('priority')
+        if failed:
+            severity = 'crit'
+        elif working == 0 and priority in ('P0', 'P1'):
+            severity = 'crit'
+        elif working == 0 and priority is None:
+            severity = 'warn'
+        elif working < 2 and priority == 'P0':
+            severity = 'warn'
+        elif any(c['state'] == 'partial' for c in copies.values()):
+            severity = 'warn'
+        else:
+            severity = 'ok'
+        entries.append({
+            'name': e.get('name'),
+            'source': e.get('source'),
+            'priority': priority,
+            'size': e.get('size'),
+            'why': e.get('why'),
+            'copies': copies,
+            'restore_test': e.get('restore_test'),
+            'working_copies': working,
+            'severity': severity,
         })
 
-    vm = _read_vm_backup_overview()
-    jobs.append(vm)
-
-    config = _read_config_backup_overview(script_entries.get('proxmox-config-backup.sh'))
-    jobs.append(config)
-
-    coverage = [
-        'Internal: docker-backups, documents, audiobooks, books, games, audiobookshelf, music, other',
-        'External: pictures, videos',
-        'Proxmox config: /etc/pve, /etc/network, /etc/fstab, /etc/udev, /home/brandon',
-        'Proxmox VM archives (vzdump) — managed by Proxmox scheduler (root)',
-    ]
-
-    overall = 'ok'
-    if any(j.get('severity') == 'crit' for j in jobs):
-        overall = 'crit'
-    elif any(j.get('severity') == 'warn' for j in jobs):
-        overall = 'warn'
-
+    sevs = [e['severity'] for e in entries]
     return {
-        'severity': overall,
-        'jobs': jobs,
-        'coverage': coverage,
+        'severity': 'crit' if 'crit' in sevs else 'warn' if 'warn' in sevs else 'ok',
+        'source': BACKUP_INVENTORY,
+        'updated': datetime.fromtimestamp(os.path.getmtime(BACKUP_INVENTORY)).isoformat(),
+        'entries': entries,
+        'drives': inv.get('drives') or [],
+        'offsite': inv.get('offsite'),
+        'error': None,
     }
 
 
