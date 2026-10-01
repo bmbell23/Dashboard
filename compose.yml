@@ -14,7 +14,6 @@ services:
       # Read-only disk mounts so the health page can report real usage
       - /mnt/docker:/mnt/docker:ro
       - /mnt/boston:/mnt/boston:ro
-      - /mnt/backups:/mnt/backups:ro
       - /mnt/external:/mnt/external:ro
       - /mnt/ssd250:/mnt/ssd250:ro
       # Host config and automation visibility (read-only)

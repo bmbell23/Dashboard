@@ -430,13 +430,12 @@ function renderProblems(snap) {
         docker_disk: 'Docker disk',
         nvme_disk: 'NVMe disk',
         nas_disk: 'Boston source disk',
-        backups_disk: 'Backups disk',
         external_disk: 'External disk',
         ssd250_disk: 'SSD250 disk',
         allston_disk: 'Allston disk',
         flash_disk: 'Flash drive',
     };
-    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nvme_disk','nvme_disk'],['nas_disk','nas_disk'],['backups_disk','backups_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk'],['allston_disk','allston_disk'],['flash_disk','flash_disk']].forEach(([key, sk]) => {
+    [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nvme_disk','nvme_disk'],['nas_disk','nas_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk'],['allston_disk','allston_disk'],['flash_disk','flash_disk']].forEach(([key, sk]) => {
         const m = snap[key];
         if (m && m.severity && m.severity !== 'ok') {
             problems.push(`${metricLabels[sk]} at ${m.pct}% — ${m.severity === 'crit' ? 'critical' : 'elevated'}`);
