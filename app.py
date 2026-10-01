@@ -214,16 +214,6 @@ DRIVE_LAYOUT = [
         'purpose': 'Extra VM storage',
     },
     {
-        'id': 'backups_disk',
-        'name': 'backups',
-        'device': 'sdc',
-        'category': 'internal',
-        'mountpoint': '/mnt/backups',
-        'size_gb_hint': 932,
-        'purpose': 'RETIRED: dead SanDisk SSD (INQUIRY failed), unmounted 2026-09-29',
-        'retired': True,
-    },
-    {
         'id': 'allston_disk',
         'name': 'allston',
         'device': 'sdd',
@@ -482,7 +472,7 @@ def _read_drive_inventory_remote() -> list[dict]:
             source = 'df'
         else:
             mounted = False if mount else None
-            if d.get('transient') or d.get('retired'):
+            if d.get('transient'):
                 sev = 'ok'
                 source = 'lsblk' if dev else 'hint'
             elif dev:
