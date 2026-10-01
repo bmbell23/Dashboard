@@ -457,6 +457,42 @@
       "controls": "container"
     },
     {
+      "key": "grafana",
+      "name": "Grafana",
+      "icon": "fas fa-chart-line",
+      "description": "History: host, drive and per-container CPU/RAM",
+      "url": "http://100.69.184.113:8016",
+      "url_label": ":8016",
+      "category": "Infrastructure",
+      "owner": "dakota",
+      "repo": "bmbell23/docker",
+      "controls": "container"
+    },
+    {
+      "key": "prometheus",
+      "name": "Prometheus",
+      "icon": "fas fa-fire",
+      "description": "Metrics and alert rules",
+      "url": "http://100.69.184.113:9090/alerts",
+      "url_label": ":9090",
+      "category": "Infrastructure",
+      "owner": "dakota",
+      "repo": "bmbell23/docker",
+      "controls": "container"
+    },
+    {
+      "key": "alertmanager",
+      "name": "Alertmanager",
+      "icon": "fas fa-bell",
+      "description": "Alert routing and silences (sends to Mongo)",
+      "url": "http://100.69.184.113:9093",
+      "url_label": ":9093",
+      "category": "Infrastructure",
+      "owner": "dakota",
+      "repo": "bmbell23/docker",
+      "controls": "container"
+    },
+    {
       "key": "dashboard",
       "name": "Dashboard",
       "icon": "fab fa-docker",

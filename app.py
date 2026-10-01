@@ -116,6 +116,9 @@ CONTAINERS = {
     # Infrastructure
     'dagu': {'name': 'dagu', 'service': 'dagu', 'compose_dir': 'dagu'},
     'pihole': {'name': 'pihole', 'service': 'pihole', 'compose_dir': 'pihole'},
+    'grafana': {'name': 'grafana', 'service': 'grafana', 'compose_dir': 'monitoring'},
+    'prometheus': {'name': 'prometheus', 'service': 'prometheus', 'compose_dir': 'monitoring'},
+    'alertmanager': {'name': 'alertmanager', 'service': 'alertmanager', 'compose_dir': 'monitoring'},
 }
 
 # =============================================================================
@@ -160,6 +163,11 @@ MONITORED_CONTAINERS = [
     {'name': 'dagu',           'label': 'Dagu',           'category': 'Infrastructure'},
     {'name': 'pihole',         'label': 'Pi-hole',        'category': 'Infrastructure'},
     {'name': 'mullvad-vpn',    'label': 'Mullvad VPN',    'category': 'Infrastructure'},
+    {'name': 'grafana',        'label': 'Grafana',        'category': 'Infrastructure'},
+    {'name': 'prometheus',     'label': 'Prometheus',     'category': 'Infrastructure'},
+    {'name': 'alertmanager',   'label': 'Alertmanager',   'category': 'Infrastructure'},
+    {'name': 'cadvisor',       'label': 'cAdvisor',       'category': 'Infrastructure'},
+    {'name': 'node-exporter',  'label': 'node_exporter',  'category': 'Infrastructure'},
     {'name': 'dashboard',      'label': 'Dashboard',      'category': 'Infrastructure'},
 ]
 
