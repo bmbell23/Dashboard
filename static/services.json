@@ -1,5 +1,5 @@
 {
-  "_comment": "The Dashboard service list (#6). One entry per service; the main page renders from this. controls: \"container\" = Restart/Recreate via CONTAINERS[key] in app.py, \"self\" = the Dashboard itself. preview_names: extra dashboard.preview.project label values that belong to this service.",
+  "_comment": "The Dashboard service list (#6). One entry per service; the main page renders from this. controls: \"container\" = Restart/Recreate via CONTAINERS[key] in app.py, \"self\" = the Dashboard itself. preview_names: extra dashboard.preview.project label values that belong to this service. repo: GitHub owner/name, used to link a preview's PR.",
   "categories": [
     {
       "name": "Projects",
@@ -32,6 +32,7 @@
       "url_label": ":8090/greatreads/tbr",
       "category": "Projects",
       "owner": "ginger",
+      "repo": "bmbell23/GreatReads",
       "controls": "container",
       "preview_names": [
         "greatreads"
@@ -55,6 +56,7 @@
       "url_label": ":5007",
       "category": "Projects",
       "owner": "lacey",
+      "repo": "bmbell23/Libby",
       "controls": "container",
       "preview_names": [
         "libby"
@@ -69,6 +71,7 @@
       "url_label": ":8004",
       "category": "Projects",
       "owner": "luna",
+      "repo": "bmbell23/LifeForge",
       "controls": "container",
       "extras": [
         {
@@ -89,6 +92,7 @@
       "url_label": ":8003",
       "category": "Projects",
       "owner": "aria",
+      "repo": "bmbell23/ArtForge",
       "controls": "container"
     },
     {
@@ -100,6 +104,7 @@
       "url_label": ":8002",
       "category": "Projects",
       "owner": "winter",
+      "repo": "bmbell23/WordForge",
       "controls": "container"
     },
     {
@@ -111,6 +116,7 @@
       "url_label": ":8011",
       "category": "Projects",
       "owner": "callie",
+      "repo": "bmbell23/Chess",
       "controls": "container"
     },
     {
@@ -122,6 +128,7 @@
       "url_label": ":8010",
       "category": "Projects",
       "owner": "nova",
+      "repo": "bmbell23/NerdNews",
       "controls": "container",
       "preview_names": [
         "nerdnews"
@@ -136,6 +143,7 @@
       "url_label": ":8006",
       "category": "Projects",
       "owner": "felicia",
+      "repo": "bmbell23/FunForge",
       "controls": "container"
     },
     {
@@ -147,6 +155,7 @@
       "url_label": ":8008",
       "category": "Projects",
       "owner": "poppy",
+      "repo": "bmbell23/PokeVault",
       "controls": "container"
     },
     {
@@ -158,6 +167,7 @@
       "url_label": ":8098",
       "category": "Projects",
       "owner": "daphne",
+      "repo": "bmbell23/Dictionary",
       "controls": "container"
     },
     {
@@ -169,6 +179,7 @@
       "url_label": ":8009",
       "category": "Projects",
       "owner": "maisie",
+      "repo": "bmbell23/MealForge",
       "controls": "container"
     },
     {
@@ -180,6 +191,7 @@
       "url_label": ":8012",
       "category": "Projects",
       "owner": "willow",
+      "repo": "bmbell23/WebForge",
       "controls": "container"
     },
     {
@@ -293,6 +305,7 @@
       "url_label": ":8998",
       "category": "Downloads",
       "owner": "daisy",
+      "repo": "bmbell23/Dashboard",
       "controls": "container",
       "extras": [
         {
@@ -312,6 +325,7 @@
       "url_label": "400+ Sites",
       "category": "Downloads",
       "owner": "daisy",
+      "repo": "bmbell23/Dashboard",
       "controls": "container",
       "extras": [
         {
@@ -381,6 +395,7 @@
       "description": "Disposable Quick-Tunnel file sharing",
       "category": "Tools",
       "owner": "daisy",
+      "repo": "bmbell23/Dashboard",
       "extras": [
         {
           "label": "Copy",
@@ -416,6 +431,7 @@
       "url_label": ":8015",
       "category": "Infrastructure",
       "owner": "bianca",
+      "repo": "bmbell23/agent-bus",
       "controls": "container"
     },
     {
@@ -449,6 +465,7 @@
       "url_label": ":8001",
       "category": "Infrastructure",
       "owner": "daisy",
+      "repo": "bmbell23/Dashboard",
       "controls": "self"
     }
   ]

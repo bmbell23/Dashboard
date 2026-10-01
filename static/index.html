@@ -903,6 +903,9 @@
         button.chip:disabled { opacity: .4; cursor: default; }
         .chip.preview { border-color: #a855f7; color: #e9d5ff; background: rgba(168,85,247,.12); font-weight: 600; }
         .chip.preview:hover { background: rgba(168,85,247,.25); }
+        .chip-pair { display: inline-flex; }
+        .chip-pair .chip.preview:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .chip-pair .pr-link { border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: .15rem .45rem; }
         .chip.owner { color: #9ca3af; }
         .svc-menu-btn { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: .25rem .4rem; border-radius: .35rem; }
         .svc-menu-btn:hover { color: var(--white); background: var(--medium-gray); }
@@ -1754,9 +1757,13 @@
                 const main = s.url
                     ? `<a class="svc-main" href="${esc(s.url)}"${target}>`
                     : `<div class="svc-main">`;
+                // Each preview: the running review copy, plus the PR on GitHub to approve it.
                 const previews = (s.previews || []).map(p =>
-                    `<a class="chip preview" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(p.container)} on :${p.port}">` +
-                    `<i class="fas fa-flask"></i> ${p.pr != null ? 'PR #' + p.pr : 'preview'}</a>`).join('');
+                    `<span class="chip-pair"><a class="chip preview" href="${esc(p.url)}" target="_blank" rel="noopener" title="Open the review copy: ${esc(p.container)} on :${p.port}">` +
+                    `<i class="fas fa-flask"></i> ${p.pr != null ? 'PR #' + p.pr : 'preview'}</a>` +
+                    (p.pr != null && s.repo
+                        ? `<a class="chip preview pr-link" href="https://github.com/${esc(s.repo)}/pull/${p.pr}" target="_blank" rel="noopener" title="Review and merge on GitHub: ${esc(s.repo)}#${p.pr}"><i class="fab fa-github"></i></a>`
+                        : '') + `</span>`).join('');
                 const menu = s.controls === 'container'
                     ? `<button onclick="restartContainer('${esc(s.key)}')"><i class="fas fa-redo"></i> Restart</button>
                        <button onclick="recreateContainer('${esc(s.key)}')"><i class="fas fa-hammer"></i> Recreate</button>`
