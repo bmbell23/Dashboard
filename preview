@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Start the review copy of a Dashboard PR (agent-bus README § "Preview containers") (#49).
+# Every name, label and path comes from the PR number, so docker/scripts/preview-cleanup.sh can
+# match it and tear it down on merge. No `image:` line: compose names the image dashboard_pr<N>-app,
+# which the cleanup's <project>_pr<N>-* glob removes.
+#   ./preview <PR#>            write the compose file, start it, check it against the cleanup rules
+#   ./preview <PR#> --dry-run  only write and print the compose file
+set -euo pipefail
+
+REPO=bmbell23/Dashboard
+MAIN=/home/brandon/projects/Dashboard
+SCRATCH=/tmp/agentbus/daisy
+N=${1:?usage: preview <PR#> [--dry-run]}
+DRY=${2:-}
+[[ $N =~ ^[0-9]+$ ]] || { echo "preview: '$N' is not a PR number" >&2; exit 2; }
+
+read -r STATE BRANCH < <(gh pr view "$N" -R "$REPO" --json state,headRefName -q '"\(.state) \(.headRefName)"') \
+    || { echo "preview: #$N is not a PR in $REPO (an issue number?)" >&2; exit 1; }
+[ "$STATE" = OPEN ] || { echo "preview: PR #$N is $STATE; previews are for open PRs only" >&2; exit 1; }
+
+SRC=$(git -C "$MAIN" worktree list --porcelain | awk -v b="refs/heads/$BRANCH" '/^worktree /{w=$2} $0=="branch "b{print w}')
+[ -n "$SRC" ] || { echo "preview: no worktree checks out $BRANCH" >&2; exit 1; }
+
+NAME=dashboard_pr$N
+# Prod is 8001, previews start at +10000; a second preview of the project takes the next 100.
+PORT=18001
+taken=$(docker ps --filter label=dashboard.preview.port=$PORT --format '{{.Names}}' | grep -vx "$NAME" || true)
+[ -z "$taken" ] || PORT=18101
+
+DIR=$SCRATCH/preview-pr$N
+mkdir -p "$DIR/data"
+cat > "$DIR/compose.yml" <<EOF
+# Review copy of Dashboard PR #$N on :$PORT, written by ./preview (#49). Do not edit by hand.
+# Read-only (PREVIEW_MODE=1). Reads the live open_prs.json from the reconciler (docker#80, via the /home/brandon/projects mount).
+name: $NAME
+
+services:
+  app:
+    container_name: $NAME
+    build: $SRC
+    network_mode: host
+    environment:
+      - PORT=$PORT
+      - PREVIEW_MODE=1
+      - OPEN_PRS_FILE=/home/brandon/projects/docker/logs/deploy/open_prs.json
+      - TZ=America/New_York
+    labels:
+      dashboard.preview.project: dashboard
+      dashboard.preview.pr: "$N"
+      dashboard.preview.port: "$PORT"
+      dashboard.preview.path: /
+      dashboard.preview.repo: $REPO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/brandon/projects:/home/brandon/projects:ro
+      - $DIR/data:/app/data
+      - /mnt/docker:/mnt/docker:ro
+      - /mnt/boston:/mnt/boston:ro
+      - /mnt/external:/mnt/external:ro
+      - /mnt/ssd250:/mnt/ssd250:ro
+      - /etc/fstab:/host_etc/fstab:ro
+      - /etc/crontab:/host_etc/crontab:ro
+      - /etc/cron.d:/host_etc/cron.d:ro
+      - /var/spool/cron:/host_var_spool_cron:ro
+      - /var/log:/host_var_log:ro
+      - /home/brandon/.ssh:/root/.ssh:ro
+      - /home/brandon/.config/git/ignore:/root/.config/git/ignore:ro
+EOF
+
+if [ "$DRY" = --dry-run ]; then cat "$DIR/compose.yml"; exit 0; fi
+
+docker compose -f "$DIR/compose.yml" up -d --build
+
+# The cleanup's rules: container name == compose project == dashboard_pr<N>, label pr == <N>.
+got=$(docker inspect "$NAME" --format '{{.Name}} {{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "dashboard.preview.pr"}} {{.Config.Image}}')
+[ "$got" = "/$NAME $NAME $N $NAME-app" ] \
+    || { echo "preview: $NAME does not match the cleanup rules: $got" >&2; exit 1; }
+
+for _ in $(seq 1 45); do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 localhost:$PORT/)" = 200 ]; then
+        echo "preview: PR #$N up at http://100.69.184.113:$PORT/"
+        exit 0
+    fi
+    sleep 2
+done
+echo "preview: $NAME did not answer 200 on :$PORT within 90 s" >&2
+docker logs --tail 20 "$NAME" >&2 || true
+exit 1
