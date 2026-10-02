@@ -42,6 +42,8 @@ services:
       - PROXMOX_SSH_PASSWORD=${PROXMOX_SSH_PASSWORD:-}
       - PROXMOX_ROOT_SSH_USER=${PROXMOX_ROOT_SSH_USER:-root}
       - PROXMOX_ROOT_SSH_PASSWORD=${PROXMOX_ROOT_SSH_PASSWORD:-}
+      # Brandon's Mattermost personal access token: @agent badges send messages as him (#46)
+      - MM_TOKEN=${MM_TOKEN:-}
 
     # Resource limits
     deploy:
