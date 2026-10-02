@@ -1820,14 +1820,15 @@
                 // Pinned on top: anything down/degraded, and anything with a preview waiting for review.
                 const attention = shown.filter(s => ['down', 'warn'].includes(health(s)[0]) || (s.previews || []).length);
                 let out = group('Needs attention', 'fas fa-triangle-exclamation', attention);
-                for (const c of data.categories) {
-                    out += group(c.name, c.icon, shown.filter(s => s.category === c.name && !attention.includes(s))
-                                                    .sort((a, b) => a.name.localeCompare(b.name)));
-                }
                 if ((data.unmatched_previews || []).length) {
+                    // Right under Needs attention: a preview that matches no service must not hide at the bottom.
                     out += group('Previews without a service', 'fas fa-flask', data.unmatched_previews.map(p => ({
                         key: p.container, name: p.container, icon: 'fas fa-flask', description: `label project "${p.project}" matches no service`,
                         url: p.url, url_label: ':' + p.port, previews: [], extras: [], container: {}, page: null })));
+                }
+                for (const c of data.categories) {
+                    out += group(c.name, c.icon, shown.filter(s => s.category === c.name && !attention.includes(s))
+                                                    .sort((a, b) => a.name.localeCompare(b.name)));
                 }
                 root.innerHTML = out || '<div class="svc-empty">No services match.</div>';
                 if (typeof checkShareStatus === 'function') checkShareStatus();
