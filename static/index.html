@@ -1804,6 +1804,33 @@
                     <div class="svc-list">${items.map(row).join('')}</div></div>`;
             }
 
+            // Open PRs in every repo, container or not (docker#80 writes the list on the host).
+            function age(iso) {
+                const h = (Date.now() - new Date(iso)) / 3.6e6;
+                return h < 1 ? `${Math.max(1, Math.round(h * 60))}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`;
+            }
+            function openPrs(q) {
+                const o = data.open_prs || {};
+                const prs = (o.prs || []).filter(p => !q || q.split(/\s+/).every(t =>
+                    [p.repo, '#' + p.number, 'pr' + p.number, p.title, p.agent, p.branch].join(' ').toLowerCase().includes(t)));
+                if (!prs.length && !o.stale) return '';
+                const rows = prs.map(p => `<div class="svc-row">
+                    <i class="svc-icon fab fa-github"></i>
+                    <a class="svc-main" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(p.branch || '')}">
+                        <div class="svc-name">${esc(p.repo)} #${p.number}</div>
+                        <div class="svc-desc">${esc(p.title)}</div></a>
+                    <div class="svc-chips">
+                        ${p.preview_url ? `<a class="chip preview" href="${esc(p.preview_url)}" target="_blank" rel="noopener" title="Open the review copy"><i class="fas fa-flask"></i> review copy</a>` : ''}
+                        ${p.is_draft ? '<span class="chip">draft</span>' : ''}
+                        ${p.agent ? `<span class="chip owner">@${esc(p.agent)}</span>` : ''}
+                        <span class="chip" title="${esc(p.created_at)}">${age(p.created_at)}</span>
+                    </div></div>`).join('');
+                return `<div class="svc-group">
+                    <div class="svc-group-title"><i class="fab fa-github"></i> Open PRs <span class="count">${prs.length}</span>
+                        ${o.stale ? `<span class="count" style="color:#f59e0b">· ${esc(o.stale)}</span>` : ''}</div>
+                    <div class="svc-list">${rows}</div></div>`;
+            }
+
             function render() {
                 if (!data) return;
                 const q = search.value.trim().toLowerCase();
@@ -1826,6 +1853,7 @@
                         key: p.container, name: p.container, icon: 'fas fa-flask', description: `label project "${p.project}" matches no service`,
                         url: p.url, url_label: ':' + p.port, previews: [], extras: [], container: {}, page: null })));
                 }
+                out += openPrs(q);
                 for (const c of data.categories) {
                     out += group(c.name, c.icon, shown.filter(s => s.category === c.name && !attention.includes(s))
                                                     .sort((a, b) => a.name.localeCompare(b.name)));

@@ -3677,7 +3677,42 @@ def list_services():
         item['previews'] = by_key.get(svc['key'], [])
         out_services.append(item)
     return jsonify({'categories': reg.get('categories', []), 'services': out_services,
-                    'unmatched_previews': unmatched, 'preview_error': preview_error})
+                    'unmatched_previews': unmatched, 'preview_error': preview_error,
+                    'open_prs': _read_open_prs(out_services)})
+
+
+OPEN_PRS_FILE = os.environ.get('OPEN_PRS_FILE', '/home/brandon/projects/docker/logs/deploy/open_prs.json')
+OPEN_PRS_STALE_S = 15 * 60  # written every ~2 min by the reconciler (docker#80)
+
+
+def _read_open_prs(services: list[dict]) -> dict:
+    """Every open PR across bmbell23 repos (docker#80), each linked to its running review copy if any."""
+    try:
+        with open(OPEN_PRS_FILE) as f:
+            doc = json.load(f)
+    except FileNotFoundError:
+        return {'prs': [], 'missing': True}
+    except Exception as ex:
+        return {'prs': [], 'error': f'open_prs.json unreadable: {ex}'}
+    stale = None
+    try:
+        age = time.time() - datetime.fromisoformat(doc['updated'].replace('Z', '+00:00')).timestamp()
+        if age > OPEN_PRS_STALE_S:
+            stale = f'PR list last updated {int(age // 60)} min ago'
+    except Exception:
+        stale = 'PR list has no valid "updated" time'
+    previews = {}
+    for svc in services:
+        repo = (svc.get('repo') or '').split('/')[-1].lower()
+        for p in svc.get('previews', []):
+            if repo and p.get('pr') is not None:
+                previews[(repo, p['pr'])] = p['url']
+    prs = []
+    for pr in doc.get('prs') or []:
+        branch = pr.get('branch') or ''
+        prs.append({**pr, 'agent': branch.split('/', 1)[0] if '/' in branch else None,
+                    'preview_url': previews.get(((pr.get('repo') or '').lower(), pr.get('number')))})
+    return {'prs': prs, 'updated': doc.get('updated'), 'stale': stale}
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', '8001')), debug=False)
