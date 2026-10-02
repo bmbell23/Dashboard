@@ -907,6 +907,20 @@
         .chip-pair .chip.preview:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
         .chip-pair .pr-link { border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: .15rem .45rem; }
         .chip.owner { color: #9ca3af; }
+        .chip.conflict { border-color: #ef4444; color: #fff; background: #dc2626; font-weight: 700; padding: .15rem .45rem; }
+        .chip.conflict:hover { background: #b91c1c; }
+        .msg-box { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; }
+        .msg-box.open { display: flex; }
+        .msg-card { background: var(--black); border: 1px solid var(--medium-gray); border-radius: .6rem; box-shadow: var(--shadow);
+            width: min(32rem, 92vw); padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+        .msg-card h3 { margin: 0; font-size: 1rem; color: var(--white); }
+        .msg-card textarea { width: 100%; box-sizing: border-box; min-height: 8rem; resize: vertical; font: inherit; font-size: .9rem;
+            background: var(--dark-gray, #111); color: var(--white); border: 1px solid var(--medium-gray); border-radius: .4rem; padding: .5rem; }
+        .msg-actions { display: flex; gap: .5rem; justify-content: flex-end; align-items: center; }
+        .msg-actions .msg-note { margin-right: auto; font-size: .75rem; color: var(--light-gray); }
+        .msg-actions button { font: inherit; font-size: .85rem; padding: .35rem .8rem; border-radius: .4rem; cursor: pointer;
+            border: 1px solid var(--medium-gray); background: transparent; color: var(--light-gray); }
+        .msg-actions button.primary { background: var(--primary-orange); border-color: var(--primary-orange); color: #000; font-weight: 600; }
         .svc-menu-btn { background: none; border: none; color: var(--light-gray); cursor: pointer; padding: .25rem .4rem; border-radius: .35rem;
             position: absolute; top: .7rem; right: .4rem; }
         .svc-menu-btn:hover { color: var(--white); background: var(--medium-gray); }
@@ -1752,6 +1766,25 @@
                 return `<button class="chip"${id} onclick="${esc(x.onclick)}" title="${title}"${x.disabled ? ' disabled' : ''}>${icon} ${label}</button>`;
             }
 
+            // @agent badges open a message to her (#46); a red ! asks her to fix a PR's merge conflict.
+            function isAgent(a) { return a && ((data.chat || {}).agents || []).includes(a); }
+            function ownerChip(agent, about) {
+                if (!agent) return '';
+                if (!isAgent(agent)) return `<span class="chip owner">@${esc(agent)}</span>`;
+                return `<button class="chip owner" data-msg-agent="${esc(agent)}" data-msg-text="${esc(about ? `Re: ${about}: ` : '')}" title="Message @${esc(agent)}">@${esc(agent)}</button>`;
+            }
+            function conflictChip(agent, repo, number, url) {
+                const why = `${repo} #${number} has merge conflicts with main`;
+                if (!isAgent(agent)) return `<span class="chip conflict" title="${esc(why)}">!</span>`;
+                const ask = `${repo} #${number} (${url}) has merge conflicts with main. Please rebase it onto origin/main in its worktree, ` +
+                            `resolve the conflicts keeping both sides' intent, re-run the tests, push with --force-with-lease, ` +
+                            `and say in the PR what conflicted and how you resolved it.`;
+                return `<button class="chip conflict" data-msg-agent="${esc(agent)}" data-msg-text="${esc(ask)}" title="${esc(why)}: ask @${esc(agent)} to resolve it">!</button>`;
+            }
+            function prInfo(repo, number) {
+                return ((data.open_prs || {}).prs || []).find(p => p.repo.toLowerCase() === repo.toLowerCase() && p.number === number);
+            }
+
             function row(s) {
                 const [state, why] = health(s);
                 const target = s.url && s.url.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
@@ -1764,7 +1797,7 @@
                     `<i class="fas fa-flask"></i> ${p.pr != null ? 'PR #' + p.pr : 'preview'}</a>` +
                     (p.pr != null && s.repo
                         ? `<a class="chip preview pr-link" href="https://github.com/${esc(s.repo)}/pull/${p.pr}" target="_blank" rel="noopener" title="Review and merge on GitHub: ${esc(s.repo)}#${p.pr}"><i class="fab fa-github"></i></a>`
-                        : '') + `</span>`).join('');
+                        : '') + `</span>` + previewConflict(s, p)).join('');
                 const apk = s.apk
                     ? `<a class="svc-menu-link" href="${esc(s.apk)}" target="_blank" rel="noopener"><i class="fas fa-mobile-screen-button"></i> Download phone app</a>` : '';
                 const menu = apk + (s.controls === 'container'
@@ -1783,11 +1816,17 @@
                     <div class="svc-chips">
                         ${previews}
                         ${(s.extras || []).map(extraChip).join('')}
-                        ${s.owner ? `<span class="chip owner" title="Owner">@${esc(s.owner)}</span>` : ''}
+                        ${ownerChip(s.owner, s.name)}
                     </div>
                     ${menu ? `<button class="svc-menu-btn" title="More" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
                     <div class="svc-menu" id="svc-menu-${esc(s.key)}" onclick="event.stopPropagation()">${menu}<div class="hint">${esc((s.container || {}).name || '')}</div></div>` : ''}
                 </div>`;
+            }
+
+            function previewConflict(s, p) {
+                if (p.pr == null || !s.repo) return '';
+                const pr = prInfo(s.repo.split('/').pop(), Number(p.pr));
+                return pr && pr.mergeable === 'CONFLICTING' ? conflictChip(pr.agent || s.owner, pr.repo, pr.number, pr.url) : '';
             }
 
             function matches(s, q) {
@@ -1823,8 +1862,9 @@
                         <div class="svc-name">${esc(p.repo)} #${p.number}</div>
                         <div class="svc-desc">${esc(p.title)}</div></a>
                     <div class="svc-chips">
+                        ${p.mergeable === 'CONFLICTING' ? conflictChip(p.agent, p.repo, p.number, p.url) : ''}
                         ${p.is_draft ? '<span class="chip">draft</span>' : ''}
-                        ${p.agent ? `<span class="chip owner">@${esc(p.agent)}</span>` : ''}
+                        ${ownerChip(p.agent, `${p.repo} #${p.number} (${p.url})`)}
                         <span class="chip" title="${esc(p.created_at)}">${age(p.created_at)}</span>
                     </div></div>`).join('');
                 return `<div class="svc-group">
@@ -1875,8 +1915,70 @@
             document.addEventListener('click', () =>
                 document.querySelectorAll('.svc-menu.open').forEach(x => x.classList.remove('open')));
 
+            const box = document.createElement('div');
+            box.className = 'msg-box';
+            box.innerHTML = `<div class="msg-card" role="dialog" aria-modal="true">
+                <h3 id="msg-to"></h3>
+                <textarea id="msg-text" maxlength="4000"></textarea>
+                <div class="msg-actions"><span class="msg-note" id="msg-note"></span>
+                    <button id="msg-cancel">Cancel</button><button class="primary" id="msg-send">Send</button></div></div>`;
+            document.body.appendChild(box);
+            const msgText = box.querySelector('#msg-text'), msgNote = box.querySelector('#msg-note'), msgSend = box.querySelector('#msg-send');
+            let msgAgent = null;
+            const closeMsg = () => { box.classList.remove('open'); msgAgent = null; };
+            function dmUrl(agent) {
+                const c = data.chat || {};
+                return c.site_url && c.team ? `${c.site_url}/${c.team}/messages/@${agent}` : null;
+            }
+            function openMsg(agent, text) {
+                const c = data.chat || {};
+                msgAgent = agent;
+                box.querySelector('#msg-to').textContent = `Message @${agent}`;
+                msgText.value = text;
+                msgSend.disabled = false;
+                msgSend.textContent = c.can_send ? 'Send' : c.preview ? 'Send (review copy: not sent)' : 'Copy & open Mattermost';
+                msgNote.textContent = c.can_send ? 'Sent as you, in your DM with her.' : c.preview ? '' : 'MM_TOKEN not set: copies the text and opens her DM.';
+                box.classList.add('open');
+                msgText.focus();
+                msgText.setSelectionRange(msgText.value.length, msgText.value.length);
+            }
+            root.addEventListener('click', (e) => {
+                const b = e.target.closest('[data-msg-agent]');
+                if (!b) return;
+                e.preventDefault(); e.stopPropagation();
+                openMsg(b.dataset.msgAgent, b.dataset.msgText || '');
+            });
+            box.addEventListener('click', (e) => { if (e.target === box) closeMsg(); });
+            box.querySelector('#msg-cancel').addEventListener('click', closeMsg);
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && msgAgent) closeMsg(); });
+            msgSend.addEventListener('click', async () => {
+                const c = data.chat || {}, text = msgText.value.trim(), agent = msgAgent;
+                if (!text || !agent) return;
+                if (c.preview) { msgNote.textContent = `Would send to @${agent}: ${text.length} characters.`; return; }
+                if (!c.can_send) {
+                    try { await navigator.clipboard.writeText(text); } catch (_) { msgNote.textContent = 'Clipboard blocked: copy the text by hand.'; }
+                    const url = dmUrl(agent);
+                    if (url) window.open(url, '_blank', 'noopener');
+                    return;
+                }
+                msgSend.disabled = true;
+                msgNote.textContent = 'Sending…';
+                try {
+                    const r = await fetch('/api/message', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                           body: JSON.stringify({ agent, text }) });
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+                    msgNote.textContent = `Sent to @${agent}.`;
+                    setTimeout(closeMsg, 900);
+                } catch (err) {
+                    msgNote.textContent = `Not sent: ${err.message}`;
+                    msgSend.disabled = false;
+                }
+            });
+
             function load() {
-                if (document.querySelector('.svc-menu.open')) return;  // don't redraw under an open menu
+                // don't redraw under an open menu or message box
+                if (document.querySelector('.svc-menu.open') || msgAgent) return;
                 fetch('/api/services')
                     .then(r => r.ok ? r.json() : Promise.reject(r.status))
                     .then(d => { data = d; render(); })

@@ -3678,7 +3678,61 @@ def list_services():
         out_services.append(item)
     return jsonify({'categories': reg.get('categories', []), 'services': out_services,
                     'unmatched_previews': unmatched, 'preview_error': preview_error,
-                    'open_prs': _read_open_prs(out_services)})
+                    'open_prs': _read_open_prs(out_services), 'chat': _chat_info()})
+
+
+# Message an agent from the Dashboard (#46): posts to Brandon's DM with her, as Brandon,
+# so the agent-bus router wakes her exactly as if he had typed it. Needs his Mattermost
+# personal access token in .env (MM_TOKEN); without it the page opens the DM instead.
+ROSTER_FILE = os.environ.get('ROSTER_FILE', '/home/brandon/projects/agent-bus/roster.yaml')
+MM_URL = os.environ.get('MM_URL', 'http://localhost:8015').rstrip('/')
+MM_TOKEN = os.environ.get('MM_TOKEN', '')
+MESSAGE_MAX = 4000
+
+
+def _roster() -> dict:
+    import yaml
+    try:
+        with open(ROSTER_FILE) as f:
+            doc = yaml.safe_load(f) or {}
+    except Exception:
+        return {'agents': [], 'site_url': None, 'team': None}
+    chat = doc.get('chat') or {}
+    return {'agents': sorted(a['username'] for a in doc.get('agents') or [] if a.get('username')),
+            'site_url': chat.get('site_url'), 'team': chat.get('team')}
+
+
+def _chat_info() -> dict:
+    r = _roster()
+    return {**r, 'can_send': bool(MM_TOKEN) and not PREVIEW_MODE, 'preview': PREVIEW_MODE}
+
+
+@app.route('/api/message', methods=['POST'])
+def api_message():
+    body = request.get_json(silent=True) or {}
+    agent, text = (body.get('agent') or '').strip().lower(), (body.get('text') or '').strip()
+    if agent not in _roster()['agents']:
+        return jsonify({'error': f'"{agent}" is not an agent on the roster'}), 400
+    if not text or len(text) > MESSAGE_MAX:
+        return jsonify({'error': f'message must be 1-{MESSAGE_MAX} characters'}), 400
+    if not MM_TOKEN:
+        return jsonify({'error': 'MM_TOKEN is not set in the Dashboard .env'}), 501
+    h = {'Authorization': f'Bearer {MM_TOKEN}'}
+    try:
+        me = requests.get(f'{MM_URL}/api/v4/users/me', headers=h, timeout=10)
+        me.raise_for_status()
+        her = requests.get(f'{MM_URL}/api/v4/users/username/{agent}', headers=h, timeout=10)
+        her.raise_for_status()
+        dm = requests.post(f'{MM_URL}/api/v4/channels/direct', headers=h, timeout=10,
+                           json=[me.json()['id'], her.json()['id']])
+        dm.raise_for_status()
+        post = requests.post(f'{MM_URL}/api/v4/posts', headers=h, timeout=10,
+                             json={'channel_id': dm.json()['id'], 'message': text})
+        post.raise_for_status()
+    except requests.RequestException as ex:
+        code = getattr(getattr(ex, 'response', None), 'status_code', None)
+        return jsonify({'error': f'Mattermost refused or unreachable ({code or ex.__class__.__name__})'}), 502
+    return jsonify({'ok': True, 'agent': agent, 'post_id': post.json().get('id')})
 
 
 OPEN_PRS_FILE = os.environ.get('OPEN_PRS_FILE', '/home/brandon/projects/docker/logs/deploy/open_prs.json')
