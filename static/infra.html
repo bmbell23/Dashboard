@@ -130,7 +130,7 @@
         .ops-list a { color: inherit; text-decoration: underline dotted; }
         .soft { color: var(--muted); font-size: .75rem; }
 
-        .backup-table { width: 100%; border-collapse: collapse; min-width: 920px; }
+        .backup-table { width: 100%; border-collapse: collapse; min-width: 1080px; }
         .backup-table th, .backup-table td { padding: .62rem .68rem; border-bottom: 1px solid #222; font-size: .82rem; text-align: left; vertical-align: top; }
         .backup-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
         .backup-list { margin: 0; padding-left: 1.1rem; }
@@ -229,6 +229,7 @@
                         <th>Priority</th>
                         <th>Primary copy</th>
                         <th>Second copy</th>
+                        <th>Third copy</th>
                         <th>Offsite</th>
                         <th>Why</th>
                     </tr>
@@ -596,7 +597,7 @@ function renderRepos(data) {
     }).join('');
 }
 
-const BACKUP_STATE_SEV = { ok: 'ok', partial: 'warn', planned: 'planned', none: 'none' };
+const BACKUP_STATE_SEV = { ok: 'ok', partial: 'warn', planned: 'planned', shadow: 'unknown', none: 'none' };
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -615,6 +616,7 @@ function renderBackupCopy(c) {
         const body = c.live.url ? `<a href="${esc(c.live.url)}" target="_blank" rel="noopener">${label}</a>` : label;
         lines.push(`<div class="sev-${esc(c.live.severity)}">${body}</div>`);
     }
+    if (c.inventory_stale) lines.push('<div class="sev-warn">DAG is running; inventory still says planned</div>');
     if (c.ref) lines.push(`<div class="soft">${esc(c.ref)}</div>`);
     return lines.join('');
 }
@@ -626,7 +628,7 @@ function renderBackups(data) {
     const entries = (data && data.entries) || [];
 
     if (!entries.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="soft">${esc((data && data.error) || 'No backup inventory available.')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="soft">${esc((data && data.error) || 'No backup inventory available.')}</td></tr>`;
     } else {
         tbody.innerHTML = entries.map(e => `<tr>
                 <td>
@@ -637,6 +639,7 @@ function renderBackups(data) {
                 <td>${e.priority ? esc(e.priority) : '<span class="soft">unset</span>'}</td>
                 <td>${renderBackupCopy(e.copies.primary)}</td>
                 <td>${renderBackupCopy(e.copies.secondary)}${e.restore_test ? `<div class="soft">restore test: ${esc(e.restore_test.dag || '')} (${esc(e.restore_test.state)})</div>` : ''}</td>
+                <td>${renderBackupCopy(e.copies.tertiary)}</td>
                 <td>${renderBackupCopy(e.copies.offsite)}</td>
                 <td><span class="soft">${esc(e.why || '')}</span></td>
             </tr>`).join('');
@@ -645,7 +648,10 @@ function renderBackups(data) {
     const count = n => entries.filter(e => e.working_copies === n).length;
     const gaps = entries.filter(e => e.working_copies === 0 && ['P0', 'P1'].includes(e.priority)).map(e => e.name);
     const unset = entries.filter(e => !e.priority).map(e => e.name);
+    const unlisted = (data && data.unlisted) || [];
+    const unlistedRows = unlisted.map(u => `<span class="sev-${esc(u.severity)}">Unlisted backup job: <a href="${esc(u.url)}" target="_blank" rel="noopener">${esc(u.dag)}</a> (${esc(u.status)}${u.schedule ? ` · ${esc(u.schedule)}` : ''}). Not in the inventory.</span>`);
     const rows = entries.length ? [
+        ...unlistedRows,
         `Two or more working copies: ${entries.filter(e => e.working_copies >= 2).length}`,
         `One working copy: ${count(1)}`,
         `No copy: ${count(0)}`,
