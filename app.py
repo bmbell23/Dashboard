@@ -1250,13 +1250,16 @@ def _read_backup_overview(automation: dict) -> dict:
         vm = _read_vm_backup_overview()
 
     live_dags = {e[k]['dag'] for e in inv.get('entries') or [] for k in _COPY_KEYS
-                 if isinstance(e.get(k), dict) and e[k].get('dag') and e[k].get('state') != 'planned'}
+                 if isinstance(e.get(k), dict) and e[k].get('dag') and e[k].get('state') in ('ok', 'partial')}
     entries = []
     for e in inv.get('entries') or []:
         copies = {k: _backup_copy(e.get(k), vm, live_dags) for k in _COPY_KEYS}
         working = sum(1 for c in copies.values()
                       if c['state'] in ('ok', 'partial') and (c['live'] or {}).get('severity') != 'crit')
-        failed = any((c['live'] or {}).get('severity') == 'crit' for c in copies.values())
+        # A shadow copy is a test run, not a copy: its live status shows, but it
+        # never counts as working and a failed run is a warning, not an outage.
+        failed = any((c['live'] or {}).get('severity') == 'crit' for c in copies.values() if c['state'] != 'shadow')
+        shadow_failed = any((c['live'] or {}).get('severity') == 'crit' for c in copies.values() if c['state'] == 'shadow')
         priority = e.get('priority')
         if failed:
             severity = 'crit'
@@ -1266,7 +1269,7 @@ def _read_backup_overview(automation: dict) -> dict:
             severity = 'warn'
         elif working < 2 and priority == 'P0':
             severity = 'warn'
-        elif any(c['state'] == 'partial' for c in copies.values()):
+        elif any(c['state'] == 'partial' for c in copies.values()) or shadow_failed:
             severity = 'warn'
         else:
             severity = 'ok'

@@ -597,7 +597,7 @@ function renderRepos(data) {
     }).join('');
 }
 
-const BACKUP_STATE_SEV = { ok: 'ok', partial: 'warn', planned: 'planned', none: 'none' };
+const BACKUP_STATE_SEV = { ok: 'ok', partial: 'warn', planned: 'planned', shadow: 'unknown', none: 'none' };
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
