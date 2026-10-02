@@ -1811,8 +1811,11 @@
             }
             function openPrs(q) {
                 const o = data.open_prs || {};
-                const prs = (o.prs || []).filter(p => !q || q.split(/\s+/).every(t =>
+                const found = (o.prs || []).filter(p => !q || q.split(/\s+/).every(t =>
                     [p.repo, '#' + p.number, 'pr' + p.number, p.title, p.agent, p.branch].join(' ').toLowerCase().includes(t)));
+                // A PR with a running review copy is already under Needs attention (its service row has the PR link).
+                const prs = found.filter(p => !p.preview_url);
+                const above = found.length - prs.length;
                 if (!prs.length && !o.stale) return '';
                 const rows = prs.map(p => `<div class="svc-row">
                     <i class="svc-icon fab fa-github"></i>
@@ -1820,13 +1823,13 @@
                         <div class="svc-name">${esc(p.repo)} #${p.number}</div>
                         <div class="svc-desc">${esc(p.title)}</div></a>
                     <div class="svc-chips">
-                        ${p.preview_url ? `<a class="chip preview" href="${esc(p.preview_url)}" target="_blank" rel="noopener" title="Open the review copy"><i class="fas fa-flask"></i> review copy</a>` : ''}
                         ${p.is_draft ? '<span class="chip">draft</span>' : ''}
                         ${p.agent ? `<span class="chip owner">@${esc(p.agent)}</span>` : ''}
                         <span class="chip" title="${esc(p.created_at)}">${age(p.created_at)}</span>
                     </div></div>`).join('');
                 return `<div class="svc-group">
                     <div class="svc-group-title"><i class="fab fa-github"></i> Open PRs <span class="count">${prs.length}</span>
+                        ${above ? `<span class="count">· ${above} with a review copy, under Needs attention</span>` : ''}
                         ${o.stale ? `<span class="count" style="color:#f59e0b">· ${esc(o.stale)}</span>` : ''}</div>
                     <div class="svc-list">${rows}</div></div>`;
             }
