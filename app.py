@@ -317,17 +317,22 @@ def _init_db():
     con.close()
 
 
-def _read_cpu() -> float:
-    """Return host CPU usage % by sampling /proc/stat twice 1 s apart."""
+def _read_cpu() -> dict:
+    """Host CPU % from /proc/stat sampled twice 1 s apart: busy work, and niced work separately.
+    Niced work (Jellyfin thumbnails, whisper) yields to everything else, so severity uses `pct`,
+    which leaves it out, the same as Prometheus HostCPUSaturated (#47)."""
     def _stat():
         with open('/proc/stat') as f:
             v = list(map(int, f.readline().split()[1:]))
-        return v[3] + v[4], sum(v)   # (idle+iowait, total)
-    i1, t1 = _stat()
+        return v[1], v[3] + v[4], sum(v)   # (nice, idle+iowait, total)
+    n1, i1, t1 = _stat()
     time.sleep(1)
-    i2, t2 = _stat()
+    n2, i2, t2 = _stat()
     dt = t2 - t1
-    return round((1 - (i2 - i1) / dt) * 100, 1) if dt else 0.0
+    if not dt:
+        return {'pct': 0.0, 'niced_pct': 0.0}
+    niced = (n2 - n1) / dt * 100
+    return {'pct': round(max(0.0, 100 - (i2 - i1) / dt * 100 - niced), 1), 'niced_pct': round(niced, 1)}
 
 
 def _read_mem() -> dict:
@@ -1902,7 +1907,7 @@ def _collect() -> dict:
     ram_pct  = int(mem['ram_used_mb']  / mem['ram_total_mb']  * 100) if mem['ram_total_mb']  else 0
     swap_pct = int(mem['swap_used_mb'] / mem['swap_total_mb'] * 100) if mem['swap_total_mb'] else 0
 
-    sevs = [_sev(cpu, 'cpu'), _sev(ram_pct, 'ram'), _sev(swap_pct, 'swap'),
+    sevs = [_sev(cpu['pct'], 'cpu'), _sev(ram_pct, 'ram'), _sev(swap_pct, 'swap'),
             _sev(docker_effective['pct'], 'docker_disk'), _sev(ssd250['pct'], 'ssd250_disk'),
             _sev(nas['pct'], 'nas_disk'),
             _sev(external['pct'], 'external_disk')]
@@ -1920,7 +1925,7 @@ def _collect() -> dict:
     return {
         'ts': int(time.time()),
         'overall': overall,
-        'cpu':           {'pct': cpu, 'severity': _sev(cpu, 'cpu')},
+        'cpu':           {**cpu, 'severity': _sev(cpu['pct'], 'cpu')},
         'ram':           {'used_mb': mem['ram_used_mb'], 'total_mb': mem['ram_total_mb'],
                           'pct': ram_pct, 'severity': _sev(ram_pct, 'ram')},
         'swap':          {'used_mb': mem['swap_used_mb'], 'total_mb': mem['swap_total_mb'],
