@@ -349,7 +349,8 @@ function sevTag(sev) {
 function renderMetrics(snap) {
         const systemMetrics = [
         { key: 'cpu',         label: 'CPU',         val: snap.cpu.pct + '%',
-          sub: '',            pct: snap.cpu.pct,    sev: snap.cpu.severity },
+          sub: snap.cpu.niced_pct ? `+${snap.cpu.niced_pct}% low-priority (niced)` : '',
+          pct: snap.cpu.pct,    sev: snap.cpu.severity },
         { key: 'ram',         label: 'RAM',
           val: fmtMB(snap.ram.used_mb),
           sub: 'of ' + fmtMB(snap.ram.total_mb),
