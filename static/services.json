@@ -168,6 +168,17 @@
       "controls": "container"
     },
     {
+      "key": "museforge-studio",
+      "name": "MuseForge Studio",
+      "icon": "fas fa-palette",
+      "description": "Private creative studio (password)",
+      "url": "http://100.69.184.113:8005",
+      "url_label": ":8005",
+      "category": "Projects",
+      "owner": "molly",
+      "repo": "bmbell23/MuseForge"
+    },
+    {
       "key": "webforge",
       "name": "WebForge",
       "icon": "fas fa-globe",
