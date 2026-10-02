@@ -1903,14 +1903,18 @@ def _card_urls() -> list[str]:
                    if _CARD_HREF_RE.match(svc.get('url') or '')})
 
 
+PROBE_HOST = os.environ.get('PROBE_HOST', '10.0.0.160')
+
+
 def _probe_card_url(href: str) -> dict:
-    """Probe a card URL via 127.0.0.1 (the Tailscale IP times out from the server itself).
+    """Probe a card URL via the LAN address (the Tailscale IP times out from the server itself, and
+    loopback misses ports that have no docker-proxy listener, e.g. Immich :2283; #36).
     Any answer below 500 counts as up: 401/403 still mean the service is serving."""
     m = re.match(r'(https?)://[^:/]+:(\d+)(.*)', href)
     scheme, port, path = m.group(1), m.group(2), m.group(3) or '/'
     started = time.time()
     try:
-        r = requests.get(f'{scheme}://127.0.0.1:{port}{path}', timeout=5,
+        r = requests.get(f'{scheme}://{PROBE_HOST}:{port}{path}', timeout=5,
                          verify=False, allow_redirects=True, stream=True)
         r.close()
         ok = r.status_code < 500
