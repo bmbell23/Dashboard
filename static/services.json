@@ -176,7 +176,10 @@
       "url_label": ":8005",
       "category": "Projects",
       "owner": "molly",
-      "repo": "bmbell23/MuseForge"
+      "repo": "bmbell23/MuseForge",
+      "preview_names": [
+        "museforge"
+      ]
     },
     {
       "key": "webforge",
