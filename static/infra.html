@@ -130,7 +130,7 @@
         .ops-list a { color: inherit; text-decoration: underline dotted; }
         .soft { color: var(--muted); font-size: .75rem; }
 
-        .backup-table { width: 100%; border-collapse: collapse; min-width: 920px; }
+        .backup-table { width: 100%; border-collapse: collapse; min-width: 1080px; }
         .backup-table th, .backup-table td { padding: .62rem .68rem; border-bottom: 1px solid #222; font-size: .82rem; text-align: left; vertical-align: top; }
         .backup-table th { font-size: .68rem; letter-spacing: .9px; text-transform: uppercase; color: var(--muted); background: #161616; }
         .backup-list { margin: 0; padding-left: 1.1rem; }
@@ -229,6 +229,7 @@
                         <th>Priority</th>
                         <th>Primary copy</th>
                         <th>Second copy</th>
+                        <th>Third copy</th>
                         <th>Offsite</th>
                         <th>Why</th>
                     </tr>
@@ -627,7 +628,7 @@ function renderBackups(data) {
     const entries = (data && data.entries) || [];
 
     if (!entries.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="soft">${esc((data && data.error) || 'No backup inventory available.')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="soft">${esc((data && data.error) || 'No backup inventory available.')}</td></tr>`;
     } else {
         tbody.innerHTML = entries.map(e => `<tr>
                 <td>
@@ -638,6 +639,7 @@ function renderBackups(data) {
                 <td>${e.priority ? esc(e.priority) : '<span class="soft">unset</span>'}</td>
                 <td>${renderBackupCopy(e.copies.primary)}</td>
                 <td>${renderBackupCopy(e.copies.secondary)}${e.restore_test ? `<div class="soft">restore test: ${esc(e.restore_test.dag || '')} (${esc(e.restore_test.state)})</div>` : ''}</td>
+                <td>${renderBackupCopy(e.copies.tertiary)}</td>
                 <td>${renderBackupCopy(e.copies.offsite)}</td>
                 <td><span class="soft">${esc(e.why || '')}</span></td>
             </tr>`).join('');

@@ -1155,7 +1155,7 @@ def _read_vm_backup_overview() -> dict:
     }
 
 
-_COPY_KEYS = ('primary', 'secondary', 'offsite')
+_COPY_KEYS = ('primary', 'secondary', 'tertiary', 'offsite')
 
 
 def _backup_copy(raw, vm: dict | None, live_dags: set = frozenset()) -> dict:
@@ -1206,6 +1206,7 @@ def _unlisted_backup_dags(inv: dict) -> list[dict]:
         for k in (*_COPY_KEYS, 'restore_test'):
             if isinstance(e.get(k), dict) and e[k].get('dag'):
                 listed.add(e[k]['dag'])
+    listed.update(d['dag'] for d in inv.get('drives') or [] if isinstance(d, dict) and d.get('dag'))
     unlisted = []
     for path in sorted(glob.glob(os.path.join(DAGU_HOME, 'dags', '*.y*ml'))):
         try:
