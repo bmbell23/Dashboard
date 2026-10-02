@@ -1158,14 +1158,22 @@ def _read_vm_backup_overview() -> dict:
 _COPY_KEYS = ('primary', 'secondary', 'offsite')
 
 
-def _backup_copy(raw, vm: dict | None) -> dict:
+def _backup_copy(raw, vm: dict | None, live_dags: set = frozenset()) -> dict:
     """Normalise one copy (primary/secondary/offsite) and attach its live status."""
     copy = dict(raw) if isinstance(raw, dict) else {'state': 'none' if raw in (None, 'none') else str(raw)}
     copy['state'] = str(copy.get('state') or 'none')
     copy['live'] = None
     dag = copy.get('dag')
-    if dag and copy['state'] != 'planned':
+    if dag:
         run = _dagu_latest_run(dag)
+        if copy['state'] == 'planned':
+            # A planned copy only gets live status once its DAG has run, so a job
+            # that went live without an inventory update still shows up. A DAG that
+            # is already live for another entry (proxmox-backup-rsync) proves nothing
+            # about this one.
+            if not run or dag in live_dags:
+                return copy
+            copy['inventory_stale'] = True
         if run:
             label, sev = _DAGU_STATUS.get(run.get('status'), ('unknown', 'warn'))
             started = _dagu_parse_time(run.get('startedAt'))
@@ -1187,6 +1195,43 @@ def _backup_copy(raw, vm: dict | None) -> dict:
     return copy
 
 
+_BACKUP_DAG_NAME = re.compile(r'backup|restic|restore')
+
+
+def _unlisted_backup_dags(inv: dict) -> list[dict]:
+    """Backup DAGs (tagged `backup`, or named like one) that no inventory entry references."""
+    import yaml
+    listed = set()
+    for e in inv.get('entries') or []:
+        for k in (*_COPY_KEYS, 'restore_test'):
+            if isinstance(e.get(k), dict) and e[k].get('dag'):
+                listed.add(e[k]['dag'])
+    unlisted = []
+    for path in sorted(glob.glob(os.path.join(DAGU_HOME, 'dags', '*.y*ml'))):
+        try:
+            with open(path) as f:
+                spec = yaml.safe_load(f) or {}
+        except Exception:
+            continue
+        name = spec.get('name') or os.path.splitext(os.path.basename(path))[0]
+        tags = spec.get('tags') or []
+        tags = [t.strip() for t in tags.split(',')] if isinstance(tags, str) else [str(t) for t in tags]
+        if name in listed or not ('backup' in tags or _BACKUP_DAG_NAME.search(name)):
+            continue
+        run = _dagu_latest_run(name)
+        label, sev = _DAGU_STATUS.get(run.get('status'), ('unknown', 'warn')) if run else ('no runs yet', 'warn')
+        unlisted.append({
+            'dag': name,
+            'description': spec.get('description'),
+            'schedule': spec.get('schedule'),
+            'status': label,
+            # Missing from the inventory is a warning; a failing run is still a failure.
+            'severity': 'crit' if sev == 'crit' else 'warn',
+            'url': f"{DAGU_URL}/dags/{os.path.splitext(os.path.basename(path))[0]}",
+        })
+    return unlisted
+
+
 def _read_backup_overview(automation: dict) -> dict:
     """Backup coverage from the inventory file, with live status for each copy."""
     try:
@@ -1203,9 +1248,11 @@ def _read_backup_overview(automation: dict) -> dict:
            for e in inv.get('entries') or [] for k in _COPY_KEYS if isinstance(e.get(k), dict)):
         vm = _read_vm_backup_overview()
 
+    live_dags = {e[k]['dag'] for e in inv.get('entries') or [] for k in _COPY_KEYS
+                 if isinstance(e.get(k), dict) and e[k].get('dag') and e[k].get('state') != 'planned'}
     entries = []
     for e in inv.get('entries') or []:
-        copies = {k: _backup_copy(e.get(k), vm) for k in _COPY_KEYS}
+        copies = {k: _backup_copy(e.get(k), vm, live_dags) for k in _COPY_KEYS}
         working = sum(1 for c in copies.values()
                       if c['state'] in ('ok', 'partial') and (c['live'] or {}).get('severity') != 'crit')
         failed = any((c['live'] or {}).get('severity') == 'crit' for c in copies.values())
@@ -1234,9 +1281,11 @@ def _read_backup_overview(automation: dict) -> dict:
             'severity': severity,
         })
 
-    sevs = [e['severity'] for e in entries]
+    unlisted = _unlisted_backup_dags(inv)
+    sevs = [e['severity'] for e in entries] + [u['severity'] for u in unlisted]
     return {
         'severity': 'crit' if 'crit' in sevs else 'warn' if 'warn' in sevs else 'ok',
+        'unlisted': unlisted,
         'source': BACKUP_INVENTORY,
         'updated': datetime.fromtimestamp(os.path.getmtime(BACKUP_INVENTORY)).isoformat(),
         'entries': entries,

@@ -615,6 +615,7 @@ function renderBackupCopy(c) {
         const body = c.live.url ? `<a href="${esc(c.live.url)}" target="_blank" rel="noopener">${label}</a>` : label;
         lines.push(`<div class="sev-${esc(c.live.severity)}">${body}</div>`);
     }
+    if (c.inventory_stale) lines.push('<div class="sev-warn">DAG is running; inventory still says planned</div>');
     if (c.ref) lines.push(`<div class="soft">${esc(c.ref)}</div>`);
     return lines.join('');
 }
@@ -645,7 +646,10 @@ function renderBackups(data) {
     const count = n => entries.filter(e => e.working_copies === n).length;
     const gaps = entries.filter(e => e.working_copies === 0 && ['P0', 'P1'].includes(e.priority)).map(e => e.name);
     const unset = entries.filter(e => !e.priority).map(e => e.name);
+    const unlisted = (data && data.unlisted) || [];
+    const unlistedRows = unlisted.map(u => `<span class="sev-${esc(u.severity)}">Unlisted backup job: <a href="${esc(u.url)}" target="_blank" rel="noopener">${esc(u.dag)}</a> (${esc(u.status)}${u.schedule ? ` · ${esc(u.schedule)}` : ''}). Not in the inventory.</span>`);
     const rows = entries.length ? [
+        ...unlistedRows,
         `Two or more working copies: ${entries.filter(e => e.working_copies >= 2).length}`,
         `One working copy: ${count(1)}`,
         `No copy: ${count(0)}`,
