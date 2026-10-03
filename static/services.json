@@ -22,7 +22,7 @@
       "icon": "fas fa-server"
     },
     {
-      "name": "pve01 / k3s",
+      "name": "Proxmox & k3s",
       "icon": "fas fa-cubes",
       "color": "#38bdf8"
     }
@@ -516,7 +516,7 @@
       "description": "k3s cluster management (k3s01-03)",
       "url": "https://rancher.10.0.0.201.sslip.io",
       "url_label": "rancher.10.0.0.201.sslip.io",
-      "category": "pve01 / k3s",
+      "category": "Proxmox & k3s",
       "owner": "peter",
       "repo": "bmbell23/proxmox",
       "lan_only": true
@@ -528,34 +528,43 @@
       "description": "GitOps deploys to k3s",
       "url": "http://argocd.10.0.0.201.sslip.io",
       "url_label": "argocd.10.0.0.201.sslip.io",
-      "category": "pve01 / k3s",
+      "category": "Proxmox & k3s",
       "owner": "peter",
       "repo": "bmbell23/proxmox",
       "lan_only": true
+    },
+    {
+      "key": "proxmox",
+      "name": "Proxmox VE (proxmox)",
+      "icon": "fas fa-server",
+      "description": "Main hypervisor: dockerhost and the drives",
+      "url": "https://100.66.123.108:8006",
+      "url_label": "proxmox :8006",
+      "category": "Proxmox & k3s",
+      "owner": "paul",
+      "repo": "bmbell23/proxmox"
     },
     {
       "key": "pve01",
       "name": "Proxmox VE (pve01)",
       "icon": "fas fa-server",
       "description": "Backup server: k3s VMs 201-203",
-      "url": "https://10.0.0.197:8006",
-      "url_label": "10.0.0.197:8006",
-      "category": "pve01 / k3s",
+      "url": "https://100.96.71.58:8006",
+      "url_label": "pve01 :8006",
+      "category": "Proxmox & k3s",
       "owner": "peter",
-      "repo": "bmbell23/proxmox",
-      "lan_only": true
+      "repo": "bmbell23/proxmox"
     },
     {
       "key": "pbs-fenway",
       "name": "PBS (fenway)",
       "icon": "fas fa-shield-halved",
       "description": "Proxmox Backup Server",
-      "url": "https://10.0.0.197:8007",
-      "url_label": "10.0.0.197:8007",
-      "category": "pve01 / k3s",
+      "url": "https://100.96.71.58:8007",
+      "url_label": "pve01 :8007",
+      "category": "Proxmox & k3s",
       "owner": "peter",
-      "repo": "bmbell23/proxmox",
-      "lan_only": true
+      "repo": "bmbell23/proxmox"
     }
   ]
 }
