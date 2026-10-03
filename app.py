@@ -2017,7 +2017,12 @@ def _card_urls() -> list[str]:
 PROBE_HOST = os.environ.get('PROBE_HOST', '')
 
 
-def _probe_card_url(href: str) -> dict:
+def _verified_urls() -> set:
+    """Rows marked tls_verify: their certificate must be valid, so an expired one shows red (#53)."""
+    return {svc['url'] for svc in _load_services()['services'] if svc.get('tls_verify')}
+
+
+def _probe_card_url(href: str, verify: bool = False) -> dict:
     """Probe a card URL at its own address, the one Brandon opens. Loopback misses ports with no
     docker-proxy listener (Immich :2283, #36); LAN misses Tailscale-only binds (MuseForge Studio, #38).
     Any answer below 500 counts as up: 401/403 still mean the service is serving."""
@@ -2028,7 +2033,7 @@ def _probe_card_url(href: str) -> dict:
         target = (f'{m.group(1)}://{PROBE_HOST}:{m.group(2)}{m.group(3) or "/"}'
                   if PROBE_HOST and m else href)
         r = requests.get(target, timeout=5,
-                         verify=False, allow_redirects=True, stream=True)
+                         verify=verify, allow_redirects=True, stream=True)
         r.close()
         ok = r.status_code < 500
         return {'ok': ok, 'code': r.status_code, 'ms': int((time.time() - started) * 1000),
@@ -2043,7 +2048,8 @@ def _card_health_loop():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     while True:
         try:
-            results = {href: _probe_card_url(href) for href in _card_urls()}
+            verified = _verified_urls()
+            results = {href: _probe_card_url(href, href in verified) for href in _card_urls()}
             with _card_health_lock:
                 _card_health.clear()
                 _card_health.update(results)
