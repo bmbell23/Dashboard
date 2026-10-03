@@ -183,7 +183,28 @@ THRESHOLDS = {
     'nvme_disk': {'warn': 85, 'crit': 93},
     'allston_disk': {'warn': 85, 'crit': 93},
     'flash_disk': {'warn': 90, 'crit': 98},
+    'pve01_root_disk':     {'warn': 85, 'crit': 93},
+    'pve01_fenway_disk':   {'warn': 85, 'crit': 93},
+    'pve01_brighton_disk': {'warn': 85, 'crit': 93},
+    'pve01_beacon_disk':   {'warn': 85, 'crit': 93},
 }
+
+PROMETHEUS_URL = os.environ.get('PROMETHEUS_URL', 'http://127.0.0.1:9090')
+
+# pve01, the backup server (#57). Read from its node_exporter through Prometheus.
+PVE01_DRIVE_LAYOUT = [
+    {'id': 'pve01_root_disk', 'name': 'pve01 root', 'device': 'sda', 'disks': ['sda'],
+     'category': 'pve01', 'mountpoint': '/', 'size_gb_hint': 101, 'purpose': 'pve01 OS (LV on the SSD)'},
+    {'id': 'pve01_fenway_disk', 'name': 'fenway', 'device': 'sda', 'disks': ['sda'],
+     'category': 'pve01', 'mountpoint': '/mnt/fenway', 'size_gb_hint': 316,
+     'purpose': 'Proxmox Backup Server datastore (thin LV on the SSD)'},
+    {'id': 'pve01_brighton_disk', 'name': 'brighton', 'device': 'sdb', 'disks': ['sdb'],
+     'category': 'pve01', 'mountpoint': '/mnt/brighton', 'size_gb_hint': 2000,
+     'purpose': 'Pictures and videos copy (rsync)'},
+    {'id': 'pve01_beacon_disk', 'name': 'beacon', 'device': 'md0', 'disks': ['sdc', 'sdd'], 'raid': 'md0',
+     'category': 'pve01', 'mountpoint': '/mnt/beacon', 'size_gb_hint': 320,
+     'purpose': 'Documents restic repo (RAID1, sdc + sdd)'},
+]
 
 DRIVE_LAYOUT = [
     {
@@ -498,6 +519,60 @@ def _read_drive_inventory_remote() -> list[dict]:
             'severity': sev,
             'source': source,
         })
+    return out
+
+
+def _prom_query(query: str) -> list[dict]:
+    """Instant query against Prometheus; raises on any failure."""
+    r = requests.get(f'{PROMETHEUS_URL}/api/v1/query', params={'query': query}, timeout=5)
+    r.raise_for_status()
+    return r.json()['data']['result']
+
+
+def _read_pve01_drives() -> list[dict]:
+    """pve01's drives from its node_exporter, via Prometheus (#57). No SSH into pve01 needed."""
+    sel = '{instance="pve01",job="node"}'
+    try:
+        size  = {m['metric']['mountpoint']: float(m['value'][1]) for m in _prom_query(f'node_filesystem_size_bytes{sel}')}
+        free  = {m['metric']['mountpoint']: float(m['value'][1]) for m in _prom_query(f'node_filesystem_free_bytes{sel}')}
+        avail = {m['metric']['mountpoint']: float(m['value'][1]) for m in _prom_query(f'node_filesystem_avail_bytes{sel}')}
+        disks = {m['metric']['device']: m['metric'] for m in _prom_query(f'node_disk_info{sel}')}
+        md    = {(m['metric']['device'], m['metric']['state']): float(m['value'][1])
+                 for m in _prom_query(f'node_md_disks{sel}')}
+        error = None
+    except Exception as ex:
+        size, free, avail, disks, md, error = {}, {}, {}, {}, {}, str(ex)
+
+    out: list[dict] = []
+    for d in PVE01_DRIVE_LAYOUT:
+        mount = d['mountpoint']
+        model = ' + '.join(disks[x]['model'].replace('_', ' ') for x in d['disks']
+                           if disks.get(x, {}).get('model')) or None
+        entry = {**d, 'model': model, 'mounted': None, 'used_gb': 0,
+                 'total_gb': d['size_gb_hint'], 'pct': 0, 'severity': 'warn', 'source': 'hint'}
+        if error:
+            entry['note'] = f'Prometheus unreachable: {error}'
+        elif mount in size:
+            used = size[mount] - free.get(mount, 0)
+            denom = used + avail.get(mount, 0)
+            pct = int(-(-used * 100 // denom)) if denom else 0   # rounds up, like df
+            entry.update(mounted=True, used_gb=round(used / 1e9, 1), total_gb=round(size[mount] / 1e9, 1),
+                         pct=pct, severity=_sev(pct, d['id']), source='prometheus')
+        else:
+            # The exporter lists every mounted filesystem it is allowed to see, so absent = not mounted.
+            entry.update(mounted=False, note='Not reported by pve01 node_exporter')
+        if d.get('raid'):
+            failed = md.get((d['raid'], 'failed'), 0)
+            active = md.get((d['raid'], 'active'), 0)
+            entry['raid_active'] = int(active)
+            if failed or (md and active < len(d['disks'])):
+                entry['severity'] = 'crit'
+                entry['note'] = f'RAID {d["raid"]} degraded: {int(active)} of {len(d["disks"])} disks active'
+        out.append(entry)
+    if error:
+        # One unreachable Prometheus is one problem, not four.
+        for e in out[1:]:
+            e['severity'] = 'ok'
     return out
 
 
@@ -1880,7 +1955,7 @@ def _collect() -> dict:
     external   = _read_disk('/mnt/external')
     ctrs       = _read_containers()
     ctr_stats  = _read_container_stats()   # per-container CPU/RAM for pie charts
-    drive_inventory = _read_drive_inventory_remote()
+    drive_inventory = _read_drive_inventory_remote() + _read_pve01_drives()
 
     # Many hosts map Docker data onto /mnt/ssd250; use it when /mnt/docker is unavailable.
     docker_effective = dsk if dsk.get('total_gb', 0) > 0 else ssd250
