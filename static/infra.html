@@ -375,6 +375,19 @@ function renderMetrics(snap) {
                         sev: d.severity || 'warn',
                 }));
 
+        const pve01Metrics = drives
+                .filter(d => d.category === 'pve01')
+                .map(d => ({
+                        key: d.id,
+                        label: `${d.name} (${d.device})`,
+                        val: d.mounted === true ? `${d.used_gb} GB` : d.mounted === false ? 'Not mounted' : 'No data',
+                        sub: d.mounted === true
+                                ? `of ${d.total_gb} GB - ${d.mountpoint}${d.note ? ' - ' + d.note : ''}`
+                                : `${d.mountpoint} - ${d.note || d.purpose}`,
+                        pct: d.mounted === true ? d.pct : 0,
+                        sev: d.severity || 'warn',
+                }));
+
         const externalMetrics = drives
                 .filter(d => d.category === 'external')
                 .map(d => ({
@@ -415,6 +428,10 @@ function renderMetrics(snap) {
                 <div class="metrics-row-title">External Drives</div>
                 <div class="metrics-grid">${renderCards(externalMetrics)}</div>
             </div>
+            <div>
+                <div class="metrics-row-title">pve01 Drives</div>
+                <div class="metrics-grid">${renderCards(pve01Metrics)}</div>
+            </div>
         `;
 }
 
@@ -446,7 +463,9 @@ function renderProblems(snap) {
     });
 
     (snap.drive_inventory || []).forEach(d => {
-        if (d.mounted === false && !d.transient) {
+        if (d.category === 'pve01' && d.note && d.severity && d.severity !== 'ok') {
+            problems.push(`pve01 ${d.name} (${d.mountpoint}): ${d.note}`);
+        } else if (d.mounted === false && !d.transient) {
             problems.push(`${d.name} (${d.device}) is not mounted at ${d.mountpoint || 'n/a'}`);
         } else if (d.mounted && !snap[d.id] && d.severity && d.severity !== 'ok') {
             // Drives with no top-level metric (nvme, allston, flash) only report through the inventory
