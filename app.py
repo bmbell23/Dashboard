@@ -2008,9 +2008,9 @@ _card_health_lock = threading.Lock()
 
 
 def _card_urls() -> list[str]:
-    """Service URLs that point at this server, from the service registry."""
+    """Every http(s) service URL in the registry: this server's, and pve01/k3s ones (#51)."""
     return sorted({svc['url'] for svc in _load_services()['services']
-                   if _CARD_HREF_RE.match(svc.get('url') or '')})
+                   if re.match(r'https?://', svc.get('url') or '')})
 
 
 # Empty = request the card URL exactly as Brandon opens it (Tailscale IP). Set to override.
@@ -2021,11 +2021,12 @@ def _probe_card_url(href: str) -> dict:
     """Probe a card URL at its own address, the one Brandon opens. Loopback misses ports with no
     docker-proxy listener (Immich :2283, #36); LAN misses Tailscale-only binds (MuseForge Studio, #38).
     Any answer below 500 counts as up: 401/403 still mean the service is serving."""
-    m = re.match(r'(https?)://[^:/]+:(\d+)(.*)', href)
-    scheme, port, path = m.group(1), m.group(2), m.group(3) or '/'
+    m = _CARD_HREF_RE.match(href) and re.match(r'(https?)://[^:/]+:(\d+)(.*)', href)
     started = time.time()
     try:
-        target = f'{scheme}://{PROBE_HOST}:{port}{path}' if PROBE_HOST else href
+        # PROBE_HOST only rewrites this server's URLs; other hosts are probed as they are.
+        target = (f'{m.group(1)}://{PROBE_HOST}:{m.group(2)}{m.group(3) or "/"}'
+                  if PROBE_HOST and m else href)
         r = requests.get(target, timeout=5,
                          verify=False, allow_redirects=True, stream=True)
         r.close()
