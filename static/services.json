@@ -549,22 +549,24 @@
       "name": "Proxmox VE (pve01)",
       "icon": "fas fa-server",
       "description": "Backup server: k3s VMs 201-203",
-      "url": "https://100.96.71.58:8006",
-      "url_label": "pve01 :8006",
+      "url": "https://pve01.tailb8b575.ts.net:8006",
+      "url_label": "pve01.tailb8b575.ts.net:8006",
       "category": "Proxmox & k3s",
       "owner": "peter",
-      "repo": "bmbell23/proxmox"
+      "repo": "bmbell23/proxmox",
+      "tls_verify": true
     },
     {
       "key": "pbs-fenway",
       "name": "PBS (fenway)",
       "icon": "fas fa-shield-halved",
       "description": "Proxmox Backup Server",
-      "url": "https://100.96.71.58:8007",
-      "url_label": "pve01 :8007",
+      "url": "https://pve01.tailb8b575.ts.net:8007",
+      "url_label": "pve01.tailb8b575.ts.net:8007",
       "category": "Proxmox & k3s",
       "owner": "peter",
-      "repo": "bmbell23/proxmox"
+      "repo": "bmbell23/proxmox",
+      "tls_verify": true
     }
   ]
 }
