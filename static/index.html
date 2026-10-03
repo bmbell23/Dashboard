@@ -881,6 +881,10 @@
         .svc-group-title { color: var(--primary-orange); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
             font-weight: 700; margin: 0 0 .5rem .25rem; display: flex; gap: .5rem; align-items: center; }
         .svc-group-title .count { color: var(--light-gray); font-weight: 400; }
+        /* A category with its own colour (services that run somewhere other than dockerhost, #51). */
+        .svc-group-title.accent { color: var(--accent); }
+        .svc-row.accent { border-left: 3px solid var(--accent); }
+        .chip.lan { border-color: var(--accent, var(--medium-gray)); color: var(--accent, var(--light-gray)); }
         .svc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: .4rem; }
         .svc-row { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .75rem; background: var(--dark-gray); border: 1px solid var(--medium-gray);
             border-radius: .55rem; padding: .55rem 2.4rem .55rem .75rem; min-height: 3.1rem; position: relative; }
@@ -1806,7 +1810,7 @@
                     : s.controls === 'self'
                     ? `<button onclick="selfRestart()"><i class="fas fa-redo"></i> Restart</button>
                        <button onclick="selfRecreate()"><i class="fas fa-hammer"></i> Recreate</button>` : '');
-                return `<div class="svc-row ${state === 'down' ? 'down' : ''}" data-key="${esc(s.key)}">
+                return `<div class="svc-row ${state === 'down' ? 'down' : ''}${accent(catColor(s.category))}" data-key="${esc(s.key)}">
                     <span class="svc-dot ${state}" title="${esc(why)}"></span>
                     <i class="svc-icon ${esc(s.icon)}"></i>
                     ${main}
@@ -1816,6 +1820,7 @@
                     <div class="svc-chips">
                         ${previews}
                         ${(s.extras || []).map(extraChip).join('')}
+                        ${s.lan_only ? '<span class="chip lan" title="Not on Tailscale: opens only from the home network">LAN only</span>' : ''}
                         ${ownerChip(s.owner, s.name)}
                     </div>
                     ${menu ? `<button class="svc-menu-btn" title="More" onclick="toggleSvcMenu(event, '${esc(s.key)}')"><i class="fas fa-ellipsis-vertical"></i></button>
@@ -1836,10 +1841,13 @@
                 return q.split(/\s+/).every(t => hay.includes(t));
             }
 
-            function group(title, icon, items) {
+            function accent(color) { return color ? ` accent" style="--accent:${esc(color)}` : ''; }
+            function catColor(name) { return ((data.categories || []).find(c => c.name === name) || {}).color; }
+
+            function group(title, icon, items, color) {
                 if (!items.length) return '';
                 return `<div class="svc-group">
-                    <div class="svc-group-title"><i class="${esc(icon)}"></i> ${esc(title)} <span class="count">${items.length}</span></div>
+                    <div class="svc-group-title${accent(color)}"><i class="${esc(icon)}"></i> ${esc(title)} <span class="count">${items.length}</span></div>
                     <div class="svc-list">${items.map(row).join('')}</div></div>`;
             }
 
@@ -1899,7 +1907,7 @@
                 out += openPrs(q);
                 for (const c of data.categories) {
                     out += group(c.name, c.icon, shown.filter(s => s.category === c.name && !attention.includes(s))
-                                                    .sort((a, b) => a.name.localeCompare(b.name)));
+                                                    .sort((a, b) => a.name.localeCompare(b.name)), c.color);
                 }
                 root.innerHTML = out || '<div class="svc-empty">No services match.</div>';
                 if (typeof checkShareStatus === 'function') checkShareStatus();
