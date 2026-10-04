@@ -153,12 +153,11 @@
       "name": "Dictionary",
       "icon": "fas fa-book",
       "description": "Word Definitions & Lookup",
-      "url": "http://100.69.184.113:8098",
-      "url_label": ":8098",
+      "url": "http://dictionary.10.0.0.201.sslip.io",
+      "url_label": "dictionary.10.0.0.201.sslip.io",
       "category": "Projects",
       "owner": "daphne",
-      "repo": "bmbell23/Dictionary",
-      "controls": "container"
+      "repo": "bmbell23/Dictionary"
     },
     {
       "key": "mealforge",
