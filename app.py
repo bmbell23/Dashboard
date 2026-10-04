@@ -2164,6 +2164,30 @@ def cards_health():
         return jsonify(dict(_card_health))
 
 
+def _prom_label(value) -> str:
+    return str(value or '').replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+
+
+@app.route('/metrics')
+def card_metrics():
+    """The card probe for Prometheus (#66): every card in services.json, so a new card is
+    watched the moment it is added. Rules: monitoring/rules/services.yml."""
+    with _card_health_lock:
+        health = dict(_card_health)
+    lines = ['# HELP dashboard_card_up 1 if the card URL answered below 500 on the last probe.',
+             '# TYPE dashboard_card_up gauge']
+    stamps = ['# HELP dashboard_card_probe_timestamp_seconds When the card URL was last probed.',
+              '# TYPE dashboard_card_probe_timestamp_seconds gauge']
+    for svc in _load_services()['services']:
+        r = health.get(svc.get('url'))
+        if not r:
+            continue
+        labels = ','.join(f'{k}="{_prom_label(svc.get(k))}"' for k in ('key', 'name', 'owner', 'url'))
+        lines.append(f'dashboard_card_up{{{labels}}} {1 if r["ok"] else 0}')
+        stamps.append(f'dashboard_card_probe_timestamp_seconds{{{labels}}} {r["ts"]}')
+    return '\n'.join(lines + stamps) + '\n', 200, {'Content-Type': 'text/plain; version=0.0.4'}
+
+
 @app.route('/api/restart/<service_id>', methods=['POST'])
 def restart_container(service_id):
     """Restart a Docker container."""

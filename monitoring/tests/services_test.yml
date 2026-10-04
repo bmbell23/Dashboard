@@ -1,0 +1,75 @@
+# promtool unit tests for monitoring/rules/services.yml. Run: monitoring/check.sh
+rule_files:
+  - ../rules/services.yml
+
+evaluation_interval: 30s
+
+tests:
+  # 4 Oct 2026: Romm down, everything else up.
+  - name: a card down for 5m fires ServiceDown with its name and owner
+    interval: 30s
+    input_series:
+      - series: 'dashboard_card_up{job="dashboard-cards",key="romm",name="Romm",owner="dakota",url="http://100.69.184.113:8080"}'
+        values: '0x20'
+      - series: 'dashboard_card_up{job="dashboard-cards",key="jellyfin",name="Jellyfin",owner="dakota",url="http://100.69.184.113:8096"}'
+        values: '1x20'
+      - series: 'up{job="dashboard-cards"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: dashboard-cards
+              key: romm
+              name: Romm
+              owner: dakota
+              url: http://100.69.184.113:8080
+            exp_annotations:
+              summary: "Romm is down: http://100.69.184.113:8080 does not answer (owner: dakota)"
+
+  - name: a one-probe blip does not fire
+    interval: 30s
+    input_series:
+      - series: 'dashboard_card_up{job="dashboard-cards",key="romm",name="Romm",owner="dakota",url="http://100.69.184.113:8080"}'
+        values: '1 1 0 0 1x16'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServiceDown
+        exp_alerts: []
+
+  - name: no Dashboard scrape fires DashboardProbesDown
+    interval: 30s
+    input_series:
+      - series: 'up{job="dashboard-cards"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: DashboardProbesDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: dashboard-cards
+            exp_annotations:
+              summary: "Prometheus cannot scrape the Dashboard (:8001/metrics); service-down alerts are blind"
+
+  - name: frozen probe timestamps fire CardProbesStale
+    interval: 1m
+    input_series:
+      - series: 'dashboard_card_probe_timestamp_seconds{key="romm"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: CardProbesStale
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: CardProbesStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "The Dashboard has not probed the service cards for 20m 0s"
