@@ -65,6 +65,13 @@
 
         /* ── Container grid ── */
         .ctr-categories { display: flex; flex-direction: column; gap: 1rem; }
+        /* dockerhost vs the k3s cluster (#64); the k3s blue matches the main page. */
+        .host-block { border-left: 3px solid var(--border); padding-left: .9rem; display: flex; flex-direction: column; gap: 1rem; }
+        .host-block.k3s { border-left-color: #38bdf8; }
+        .host-title { font-size: .8rem; font-weight: 700; letter-spacing: .5px; display: flex; align-items: center; gap: .45rem; }
+        .host-block.k3s .host-title { color: #38bdf8; }
+        .host-title .soft { font-weight: 400; color: var(--muted); }
+        .ctr-pill.k3s { background: rgba(56,189,248,.08); }
         .ctr-category-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: .4rem; }
         .ctr-row { display: flex; flex-wrap: wrap; gap: .5rem; }
         .ctr-pill { display: flex; align-items: center; gap: .4rem; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem; font-size: .8rem; transition: border-color .2s; }
@@ -194,7 +201,7 @@
 
 <!-- Container Status -->
 <div class="section">
-    <div class="section-title">Container Status</div>
+    <div class="section-title">Service Status: dockerhost and k3s cluster</div>
     <div class="ctr-categories" id="ctr-categories"></div>
 </div>
 
@@ -473,6 +480,10 @@ function renderProblems(snap) {
         }
     });
 
+    (snap.cluster_services || []).forEach(s => {
+        if (s.state === 'down') problems.push(`${s.label} (k3s) — not answering at ${s.url}: ${s.error}`);
+    });
+
     // Container issues
     (snap.containers || []).forEach(c => {
         if (c.optional && (c.state === 'missing' || c.state === 'idle' || c.state === 'stopped')) return; // transient — not a problem when idle/stopped
@@ -557,13 +568,13 @@ function ctrStateLabel(c) {
     return 'running';
 }
 
-function renderContainers(containers) {
+function renderContainers(containers, snap) {
     const groups = {};
     containers.forEach(c => {
         if (!groups[c.category]) groups[c.category] = [];
         groups[c.category].push(c);
     });
-    $('ctr-categories').innerHTML = Object.entries(groups).map(([cat, ctrs]) => `
+    const dockerhost = Object.entries(groups).map(([cat, ctrs]) => `
         <div>
           <div class="ctr-category-label">${cat}</div>
           <div class="ctr-row">
@@ -580,6 +591,24 @@ function renderContainers(containers) {
           </div>
         </div>`
     ).join('');
+    const cluster = (snap.cluster_services || []).map(s => {
+        const sev = s.state === 'up' ? 'ok' : s.state === 'down' ? 'crit' : 'idle';
+        const why = s.state === 'up' ? `${s.url} answered ${s.code}` : s.state === 'down' ? `${s.url}: ${s.error}` : 'Not probed yet';
+        return `<a class="ctr-pill k3s ${sev}" href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(why)}" style="text-decoration:none;color:inherit">
+          <div class="ctr-dot ${sev}"></div>
+          <span class="ctr-name">${esc(s.label)}</span>
+          ${sev !== 'ok' ? `<span class="ctr-state">${s.state === 'down' ? 'down' : 'unknown'}</span>` : ''}
+        </a>`;
+    }).join('');
+    $('ctr-categories').innerHTML = `
+        <div class="host-block">
+          <div class="host-title"><i class="fab fa-docker"></i> dockerhost <span class="soft">Docker containers</span></div>
+          ${dockerhost}
+        </div>
+        <div class="host-block k3s">
+          <div class="host-title"><i class="fas fa-cubes"></i> k3s cluster <span class="soft">k3s01-03, status from each service's URL</span></div>
+          ${cluster ? `<div class="ctr-row">${cluster}</div>` : '<div class="ctr-category-label">Nothing migrated yet</div>'}
+        </div>`;
 }
 
 // ── Extended Ops panels ─────────────────────────────────────────────────────
@@ -926,7 +955,7 @@ function refresh() {
             setBanner(snap.overall || 'unknown');
             renderProblems(snap);
             renderMetrics(snap);
-            renderContainers(snap.containers || []);
+            renderContainers(snap.containers || [], snap);
             buildPies(snap.container_stats || []);
             const upd = $('last-updated');
             upd.innerHTML = `<span class="last-updated-dot"></span>Updated ${new Date().toLocaleTimeString()}`;

@@ -1944,6 +1944,22 @@ def _overall_from_sections(ext: dict) -> str:
     return 'ok'
 
 
+def _read_cluster_services() -> list[dict]:
+    """Services migrated to k3s ("platform": "k3s" in services.json, #64). The Dashboard has no
+    kube access, so their state is the card URL probe: up, down, or unknown before the first probe."""
+    with _card_health_lock:
+        health = dict(_card_health)
+    out = []
+    for s in _load_services()['services']:
+        if s.get('platform') != 'k3s':
+            continue
+        h = health.get(s.get('url'))
+        state = 'unknown' if not h else 'up' if h['ok'] else 'down'
+        out.append({'key': s['key'], 'label': s['name'], 'url': s.get('url'), 'owner': s.get('owner'),
+                    'state': state, 'code': (h or {}).get('code'), 'error': (h or {}).get('error')})
+    return out
+
+
 def _collect() -> dict:
     cpu        = _read_cpu()
     mem        = _read_mem()
@@ -1977,6 +1993,8 @@ def _collect() -> dict:
     if 'external_disk' in unmounted:
         external = blank()
 
+    cluster = _read_cluster_services()
+
     ram_pct  = int(mem['ram_used_mb']  / mem['ram_total_mb']  * 100) if mem['ram_total_mb']  else 0
     swap_pct = int(mem['swap_used_mb'] / mem['swap_total_mb'] * 100) if mem['swap_total_mb'] else 0
 
@@ -1992,6 +2010,7 @@ def _collect() -> dict:
         and not (c.get('optional') and c['state'] == 'idle')
         for c in ctrs
     )
+    ctr_problem = ctr_problem or any(s['state'] == 'down' for s in cluster)
     overall = ('crit' if ('crit' in sevs or ctr_problem) else
                'warn' if 'warn' in sevs else 'ok')
 
@@ -2009,6 +2028,7 @@ def _collect() -> dict:
         'external_disk': {**external, 'severity': _sev(external['pct'], 'external_disk')},
         'drive_inventory': drive_inventory,
         'containers':    ctrs,
+        'cluster_services': cluster,
         'container_stats': ctr_stats,
         'thresholds':    THRESHOLDS,
     }
