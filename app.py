@@ -109,7 +109,6 @@ CONTAINERS = {
     'office': {'name': 'agentbus_mattermost', 'service': 'mattermost', 'compose_dir': '/home/brandon/projects/agent-bus'},
     'stash': {'name': 'stash', 'service': 'stash', 'compose_dir': 'stash'},
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
-    'dictionary': {'name': 'dictionary-api', 'service': 'dictionary-api', 'compose_dir': 'dictionary'},
     'vaultwarden': {'name': 'vaultwarden', 'service': 'vaultwarden', 'compose_dir': 'vaultwarden'},
     'pokevault': {'name': 'pokevault', 'service': 'web', 'compose_dir': '/home/brandon/projects/PokeVault'},
 
@@ -155,7 +154,6 @@ MONITORED_CONTAINERS = [
     {'name': 'agentbus_postgres',   'label': 'Office DB',          'category': 'Tools'},
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
-    {'name': 'dictionary-api', 'label': 'Dictionary',     'category': 'Tools'},
     {'name': 'vaultwarden',    'label': 'Vaultwarden',    'category': 'Tools'},
     {'name': 'pokevault',      'label': 'PokeVault',      'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
