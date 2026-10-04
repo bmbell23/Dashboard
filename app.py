@@ -2171,7 +2171,8 @@ def _prom_label(value) -> str:
 @app.route('/metrics')
 def card_metrics():
     """The card probe for Prometheus (#66): every card in services.json, so a new card is
-    watched the moment it is added. Rules: monitoring/rules/services.yml."""
+    watched the moment it is added. Scraped as job dashboard-cards; rules live in
+    docker/monitoring/prometheus/rules/services.yml."""
     with _card_health_lock:
         health = dict(_card_health)
     lines = ['# HELP dashboard_card_up 1 if the card URL answered below 500 on the last probe.',
