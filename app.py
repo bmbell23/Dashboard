@@ -2990,9 +2990,13 @@ def _dl_gallery(job_id: str, url: str, page_url: str, meta: dict) -> str:
     target = f'{STASH_DL_PICS_MOUNT}/{folder}'
     code, out, err = _run_tail(['docker', 'exec', 'gallery-dl', 'gallery-dl', '--retries', '5',
                                 '-D', target, url], 3600)
-    got = [ln for ln in out.splitlines() if target + '/' in ln]
-    if code == 0 and got:
-        _sj_set(job_id, files=len(got))
+    # gallery-dl prints no paths when stdout isn't a terminal, so count what landed in the folder.
+    _, n, _ = _run_tail(['docker', 'exec', 'gallery-dl', 'python3', '-c',
+                         'import os,sys; d=sys.argv[1]; print(len(os.listdir(d)) if os.path.isdir(d) else 0)',
+                         target], 30)
+    n_files = int(n.strip() or 0)
+    if n_files:   # a non-zero exit with files saved is a partial gallery, still worth keeping
+        _sj_set(job_id, files=n_files, **({'note': f'gallery-dl exit {code}: {err[-160:]}'} if code else {}))
         return f'{STASH_DL_PICS_STASH}/{folder}'
     urls = [u for u in (meta.get('image_urls') or []) if isinstance(u, str) and u.startswith('http')]
     if not urls:
