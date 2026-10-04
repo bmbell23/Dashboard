@@ -11,6 +11,8 @@ import logging
 import os
 import json
 import uuid
+import queue
+import urllib.parse
 import threading
 import sqlite3
 import time
@@ -2869,6 +2871,327 @@ def _apply_stash_gallery_metadata(source_url, meta):
 
     except Exception as e:
         logger.error(f"Failed to apply Stash gallery metadata: {e}")
+
+
+# ── Add to Stash from WebForge (#68, agent-bus thread 021) ───────────────────
+# POST /api/download/stash queues a job and answers at once; one worker thread downloads
+# through the yt-dlp-web / gallery-dl containers, scans only the new path, identifies scenes
+# against StashDB, then applies what WebForge read off the page. Jobs live in memory.
+
+STASH_DL_VIDEO_MOUNT = '/stash-downloads'          # yt-dlp-web: host other/Videos/Downloads
+STASH_DL_VIDEO_STASH = '/data/Videos/Downloads'
+STASH_DL_PICS_MOUNT = '/pictures/Downloads'         # gallery-dl: host other/Pictures/Downloads
+STASH_DL_PICS_STASH = '/data/Pictures/Downloads'
+STASHDB_ENDPOINT = 'https://stashdb.org/graphql'
+_VIDEO_EXT = {'.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi', '.wmv', '.flv', '.ts'}
+_IMAGE_EXT = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.jfif'}
+_DL_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+
+_stash_jobs: dict = {}
+_stash_jobs_lock = threading.Lock()
+_stash_queue: queue.Queue = queue.Queue()
+
+
+def _sj_set(job_id, **kw):
+    with _stash_jobs_lock:
+        _stash_jobs[job_id].update(kw, updated=int(time.time()))
+
+
+def _safe_name(s: str, limit: int = 120) -> str:
+    s = re.sub(r'[\x00-\x1f/\\:*?"<>|]+', ' ', str(s or ''))
+    s = re.sub(r'\s+', ' ', s).strip(' .')
+    return s[:limit].rstrip(' .')
+
+
+def _stash_folder_name(meta: dict) -> str:
+    """`<YYYY-MM-DD HHMM> - <performers> - <title>`, empty parts dropped."""
+    parts = [datetime.now().strftime('%Y-%m-%d %H%M'),
+             _safe_name(', '.join(str(p) for p in meta.get('performers') or []), 80),
+             _safe_name(meta.get('title') or '', 120)]
+    return ' - '.join(p for p in parts if p)
+
+
+def _media_kind(url: str, page_url: str) -> str:
+    """'video' or 'image' for a direct file: extension first, then Content-Type."""
+    ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+    if ext in _VIDEO_EXT:
+        return 'video'
+    if ext in _IMAGE_EXT:
+        return 'image'
+    try:
+        r = requests.get(url, headers={'User-Agent': _DL_UA, 'Referer': page_url or url},
+                         stream=True, timeout=20)
+        ctype = r.headers.get('Content-Type', '')
+        r.close()
+        return 'video' if ctype.startswith('video/') else 'image'
+    except requests.RequestException:
+        return 'image'
+
+
+def _run_tail(cmd: list, timeout: int) -> tuple[int, str, str]:
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return r.returncode, r.stdout or '', (r.stderr or r.stdout or '').strip()[-600:]
+
+
+def _dl_video(url: str) -> str:
+    """yt-dlp into Videos/Downloads (also handles direct video files). Returns the Stash path."""
+    code, _, _ = _run_tail(['docker', 'exec', 'yt-dlp-web', 'test', '-d', STASH_DL_VIDEO_MOUNT], 15)
+    if code != 0:
+        raise RuntimeError(f'yt-dlp-web has no {STASH_DL_VIDEO_MOUNT} mount yet '
+                           '(other/Videos/Downloads, docker repo); videos cannot be saved until it does')
+    code, out, err = _run_tail([
+        'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+        '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+        '--merge-output-format', 'mp4', '--add-metadata', '--write-info-json',
+        '--no-part', '--no-continue', '--retries', '10', '--no-playlist',
+        '--no-simulate', '--print', 'after_move:filepath',
+        '-o', f'{STASH_DL_VIDEO_MOUNT}/%(id)s - %(title).150B.%(ext)s', url], 3600)
+    files = [ln for ln in out.splitlines() if ln.startswith(STASH_DL_VIDEO_MOUNT + '/')]
+    if code != 0 or not files:
+        raise RuntimeError(f'yt-dlp failed: {err}')
+    return STASH_DL_VIDEO_STASH + files[-1][len(STASH_DL_VIDEO_MOUNT):]
+
+
+def _write_into_gallery_dl(container_path: str, data: bytes):
+    """gallery-dl owns the Pictures mount; write through it (the Dashboard mounts boston read-only)."""
+    r = subprocess.run(['docker', 'exec', '-i', 'gallery-dl', 'python3', '-c',
+                        'import os,sys; p=sys.argv[1]; os.makedirs(os.path.dirname(p), exist_ok=True); '
+                        'open(p, "wb").write(sys.stdin.buffer.read())', container_path],
+                       input=data, capture_output=True, timeout=120)
+    if r.returncode != 0:
+        raise RuntimeError(f'write failed: {r.stderr.decode(errors="replace")[-300:]}')
+
+
+def _fetch_image(url: str, page_url: str) -> tuple[bytes, str]:
+    r = requests.get(url, headers={'User-Agent': _DL_UA, 'Referer': page_url or url}, timeout=60)
+    r.raise_for_status()
+    ctype = r.headers.get('Content-Type', '').split(';')[0].strip()
+    if ctype and not ctype.startswith('image/'):
+        raise RuntimeError(f'{url} is {ctype}, not an image')
+    ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+    if ext not in _IMAGE_EXT:
+        ext = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
+               'image/avif': '.avif'}.get(ctype, '.jpg')
+    return r.content, ext
+
+
+def _dl_image(url: str, page_url: str) -> str:
+    """One image straight into Pictures/Downloads. Returns the Stash path."""
+    data, ext = _fetch_image(url, page_url)
+    base = _safe_name(os.path.splitext(os.path.basename(urllib.parse.urlparse(url).path))[0], 80) or 'image'
+    name = f'{datetime.now().strftime("%Y-%m-%d %H%M%S")} - {base}{ext}'
+    _write_into_gallery_dl(f'{STASH_DL_PICS_MOUNT}/{name}', data)
+    return f'{STASH_DL_PICS_STASH}/{name}'
+
+
+def _dl_gallery(job_id: str, url: str, page_url: str, meta: dict) -> str:
+    """gallery-dl into one folder; WebForge's image_urls when gallery-dl can't. Returns the Stash folder."""
+    folder = _stash_folder_name(meta)
+    target = f'{STASH_DL_PICS_MOUNT}/{folder}'
+    code, out, err = _run_tail(['docker', 'exec', 'gallery-dl', 'gallery-dl', '--retries', '5',
+                                '-D', target, url], 3600)
+    # gallery-dl prints no paths when stdout isn't a terminal, so count what landed in the folder.
+    _, n, _ = _run_tail(['docker', 'exec', 'gallery-dl', 'python3', '-c',
+                         'import os,sys; d=sys.argv[1]; print(len(os.listdir(d)) if os.path.isdir(d) else 0)',
+                         target], 30)
+    n_files = int(n.strip() or 0)
+    if n_files:   # a non-zero exit with files saved is a partial gallery, still worth keeping
+        _sj_set(job_id, files=n_files, **({'note': f'gallery-dl exit {code}: {err[-160:]}'} if code else {}))
+        return f'{STASH_DL_PICS_STASH}/{folder}'
+    urls = [u for u in (meta.get('image_urls') or []) if isinstance(u, str) and u.startswith('http')]
+    if not urls:
+        raise RuntimeError(f'gallery-dl got nothing and WebForge sent no image_urls: {err}')
+    _sj_set(job_id, note=f'gallery-dl could not: using the {len(urls)} image_urls from the page')
+    saved = 0
+    for i, u in enumerate(urls, 1):
+        try:
+            data, ext = _fetch_image(u, page_url)
+            _write_into_gallery_dl(f'{target}/{i:03d}{ext}', data)
+            saved += 1
+        except Exception as ex:
+            logger.warning(f'Add to Stash: image {u} failed: {ex}')
+        _sj_set(job_id, progress=f'{i}/{len(urls)}')
+    if not saved:
+        raise RuntimeError(f'none of the {len(urls)} image_urls downloaded')
+    _sj_set(job_id, files=saved)
+    return f'{STASH_DL_PICS_STASH}/{folder}'
+
+
+def _sgql(h: dict, query: str, variables: dict | None = None) -> dict:
+    """Stash GraphQL that raises on GraphQL errors instead of returning None."""
+    r = requests.post(STASH_GRAPHQL_URL, json={'query': query, 'variables': variables or {}}, headers=h, timeout=30)
+    r.raise_for_status()
+    j = r.json()
+    if j.get('errors'):
+        raise RuntimeError(f"Stash: {j['errors'][0].get('message')}")
+    return j.get('data') or {}
+
+
+def _stash_headers() -> dict:
+    h = {'Content-Type': 'application/json'}
+    if os.environ.get('STASH_API_KEY'):
+        h['ApiKey'] = os.environ['STASH_API_KEY']
+    return h
+
+
+def _stash_wait_job(h: dict, job_id, limit_s: int = 900):
+    """Wait until a Stash job leaves the queue."""
+    end = time.time() + limit_s
+    while time.time() < end:
+        time.sleep(3)
+        q = _sgql(h, '{ jobQueue { id } }').get('jobQueue') or []
+        if not any(str(j.get('id')) == str(job_id) for j in q):
+            return
+    raise RuntimeError(f'Stash job {job_id} still running after {limit_s}s')
+
+
+def _stash_find(h: dict, kind: str, path: str):
+    q = {'scene': ('findScenes', 'scene_filter', 'scenes'),
+         'image': ('findImages', 'image_filter', 'images'),
+         'gallery': ('findGalleries', 'gallery_filter', 'galleries')}[kind]
+    data = _sgql(h, f'query($p: String!) {{ {q[0]}({q[1]}: {{ path: {{ value: $p, modifier: EQUALS }} }}) '
+                         f'{{ {q[2]} {{ id title date urls studio {{ id }} performers {{ id }} tags {{ id }} }} }} }}',
+                      {'p': path})
+    items = (data.get(q[0]) or {}).get(q[2]) or []
+    return items[0] if items else None
+
+
+def _stash_get_or_create_studio(h: dict, name: str, site: str | None):
+    data = _sgql(h, 'query($n: String!) { findStudios(studio_filter: { name: { value: $n, modifier: EQUALS } }) '
+                         '{ studios { id } } }', {'n': name})
+    found = (data.get('findStudios') or {}).get('studios') or []
+    if found:
+        return found[0]['id']
+    inp = {'name': name}
+    if site:
+        inp['urls'] = [site if site.startswith('http') else f'https://{site}']
+    return (_sgql(h, 'mutation($i: StudioCreateInput!) { studioCreate(input: $i) { id } }',
+                       {'i': inp}).get('studioCreate') or {}).get('id')
+
+
+def _stash_apply_meta(h: dict, kind: str, obj: dict, page_url: str, meta: dict):
+    """Add what WebForge read. URLs, performers and tags are merged; title, date and studio only
+    fill what StashDB identify left empty (a StashDB match is the better source)."""
+    inp = {'id': obj['id']}
+    urls = list(obj.get('urls') or [])
+    if page_url and page_url not in urls:
+        urls.append(page_url)
+    inp['urls'] = urls
+    if meta.get('title') and not obj.get('title'):
+        inp['title'] = str(meta['title'])[:500]
+    d = str(meta.get('date') or '')[:10]
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', d) and not obj.get('date'):
+        inp['date'] = d
+    studio = str(meta.get('studio') or meta.get('site') or '').strip()
+    if studio and not obj.get('studio'):
+        sid = _stash_get_or_create_studio(h, studio, meta.get('site'))
+        if sid:
+            inp['studio_id'] = sid
+    perf = {p['id'] for p in obj.get('performers') or []}
+    for name in meta.get('performers') or []:
+        if str(name).strip():
+            pid = _stash_get_or_create_performer(h, str(name).strip())
+            if pid:
+                perf.add(pid)
+    inp['performer_ids'] = sorted(perf)
+    tags = {t['id'] for t in obj.get('tags') or []}
+    for name in meta.get('tags') or []:
+        if str(name).strip():
+            tid = _stash_get_or_create_tag(h, str(name).strip())
+            if tid:
+                tags.add(tid)
+    inp['tag_ids'] = sorted(tags)
+    mut = {'scene': ('sceneUpdate', 'SceneUpdateInput'), 'image': ('imageUpdate', 'ImageUpdateInput'),
+           'gallery': ('galleryUpdate', 'GalleryUpdateInput')}[kind]
+    _sgql(h, f'mutation($i: {mut[1]}!) {{ {mut[0]}(input: $i) {{ id }} }}', {'i': inp})
+
+
+def _stash_job_run(job_id: str, req: dict):
+    kind, url, page_url, meta = req['kind'], req['url'], req.get('page_url') or '', req.get('meta') or {}
+    _sj_set(job_id, state='downloading')
+    if kind == 'media':
+        kind = _media_kind(url, page_url)
+    if kind == 'video':
+        path, stash_kind = _dl_video(url), 'scene'
+    elif kind == 'image':
+        path, stash_kind = _dl_image(url, page_url), 'image'
+    else:
+        path, stash_kind = _dl_gallery(job_id, url, page_url, meta), 'gallery'
+    _sj_set(job_id, state='scanning', path=path)
+
+    h = _stash_headers()
+    scan = _sgql(h, 'mutation($p: [String!]) { metadataScan(input: { paths: $p, scanGenerateThumbnails: true, '
+                         'scanGeneratePhashes: true }) }', {'p': [path]}).get('metadataScan')
+    _stash_wait_job(h, scan)
+    obj = _stash_find(h, stash_kind, path)
+    if not obj:
+        raise RuntimeError(f'saved to {path}, but Stash found no {stash_kind} there after the scan')
+    if stash_kind == 'scene':
+        ident = _sgql(h, 'mutation($s: [ID!], $e: String!) { metadataIdentify(input: { sceneIDs: $s, '
+                              'sources: [{ source: { stash_box_endpoint: $e } }], options: { setCoverImage: true } }) }',
+                           {'s': [obj['id']], 'e': STASHDB_ENDPOINT}).get('metadataIdentify')
+        try:
+            _stash_wait_job(h, ident, 300)
+        except RuntimeError as ex:
+            logger.warning(f'Add to Stash: {ex}')
+        obj = _stash_find(h, 'scene', path) or obj
+    _sj_set(job_id, state='tagging', stash={'type': stash_kind, 'id': obj['id']})
+    _stash_apply_meta(h, stash_kind, obj, page_url, meta)
+    _sj_set(job_id, state='done')
+
+
+def _stash_worker():
+    while True:
+        job_id, req = _stash_queue.get()
+        try:
+            _stash_job_run(job_id, req)
+            logger.info(f'Add to Stash {job_id}: done ({_stash_jobs[job_id].get("path")})')
+        except Exception as ex:
+            logger.error(f'Add to Stash {job_id} failed: {ex}')
+            _sj_set(job_id, state='failed', error=str(ex)[:600])
+        finally:
+            with _stash_jobs_lock:   # forget finished jobs after a day
+                cutoff = time.time() - 86400
+                for k in [k for k, j in _stash_jobs.items()
+                          if j['updated'] < cutoff and j['state'] in ('done', 'failed')]:
+                    del _stash_jobs[k]
+
+
+threading.Thread(target=_stash_worker, daemon=True, name='add-to-stash').start()
+
+
+@app.route('/api/download/stash', methods=['POST'])
+def download_to_stash():
+    """WebForge's Add to Stash (#68). Body per agent-bus thread 021; answers at once with a job id."""
+    data = request.get_json(silent=True) or {}
+    kind = str(data.get('kind') or '').lower()
+    url = str(data.get('url') or '').strip()
+    meta = data.get('meta') if isinstance(data.get('meta'), dict) else {}
+    if kind not in ('media', 'video', 'gallery'):
+        return jsonify({'ok': False, 'error': 'kind must be media, video or gallery'}), 400
+    if not re.match(r'https?://', url):
+        return jsonify({'ok': False, 'error': 'url must be http(s)'}), 400
+    for k in ('performers', 'tags', 'image_urls'):
+        if not isinstance(meta.get(k) or [], list):
+            return jsonify({'ok': False, 'error': f'meta.{k} must be a list'}), 400
+    job_id = uuid.uuid4().hex[:12]
+    now = int(time.time())
+    with _stash_jobs_lock:
+        _stash_jobs[job_id] = {'job': job_id, 'kind': kind, 'url': url, 'state': 'queued', 'error': None,
+                               'path': None, 'stash': None, 'created': now, 'updated': now}
+    _stash_queue.put((job_id, {'kind': kind, 'url': url, 'page_url': str(data.get('page_url') or ''),
+                               'meta': meta}))
+    logger.info(f'Add to Stash {job_id}: queued {kind} {url}')
+    return jsonify({'ok': True, 'job': job_id}), 202
+
+
+@app.route('/api/download/stash/<job_id>')
+def download_to_stash_status(job_id):
+    with _stash_jobs_lock:
+        job = dict(_stash_jobs.get(job_id) or {})
+    if not job:
+        return jsonify({'ok': False, 'error': 'unknown job (finished over a day ago, or the Dashboard restarted)'}), 404
+    return jsonify({'ok': True, **job})
 
 
 @app.route('/api/download/gallery', methods=['POST'])
