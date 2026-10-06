@@ -174,8 +174,9 @@ MONITORED_CONTAINERS = [
 THRESHOLDS = {
     'cpu':         {'warn': 85, 'crit': 95},
     'ram':         {'warn': 85, 'crit': 95},
-    # vm.swappiness=80 on this host, so steady-state swap use is expected and healthy.
-    'swap':        {'warn': 80, 'crit': 92},
+    # Swap is graded on memory pressure (PSI 'some' avg60, %), not fill (#70): full swap with
+    # nothing paging in is just cold pages parked on disk.
+    'swap':        {'warn': 10, 'crit': 25},
     'docker_disk': {'warn': 75, 'crit': 85},
     'ssd250_disk': {'warn': 85, 'crit': 93},
     'nas_disk':    {'warn': 85, 'crit': 93},
@@ -369,6 +370,18 @@ def _read_mem() -> dict:
         'swap_used_mb':  (kv['SwapTotal'] - kv['SwapFree']) // 1024,
         'swap_total_mb': kv['SwapTotal'] // 1024,
     }
+
+
+def _read_mem_pressure() -> float | None:
+    """PSI 'some avg60' for memory: % of the last minute tasks stalled waiting on memory."""
+    try:
+        with open('/proc/pressure/memory') as f:
+            for line in f:
+                if line.startswith('some '):
+                    return float(line.split('avg60=')[1].split()[0])
+    except (OSError, IndexError, ValueError):
+        pass
+    return None
 
 
 def _read_disk(path: str) -> dict:
@@ -1999,8 +2012,10 @@ def _collect() -> dict:
 
     ram_pct  = int(mem['ram_used_mb']  / mem['ram_total_mb']  * 100) if mem['ram_total_mb']  else 0
     swap_pct = int(mem['swap_used_mb'] / mem['swap_total_mb'] * 100) if mem['swap_total_mb'] else 0
+    mem_pressure = _read_mem_pressure()
+    swap_sev = _sev(mem_pressure, 'swap') if mem_pressure is not None else 'ok'
 
-    sevs = [_sev(cpu['pct'], 'cpu'), _sev(ram_pct, 'ram'), _sev(swap_pct, 'swap'),
+    sevs = [_sev(cpu['pct'], 'cpu'), _sev(ram_pct, 'ram'), swap_sev,
             _sev(docker_effective['pct'], 'docker_disk'), _sev(ssd250['pct'], 'ssd250_disk'),
             _sev(nas['pct'], 'nas_disk'),
             _sev(external['pct'], 'external_disk')]
@@ -2023,7 +2038,7 @@ def _collect() -> dict:
         'ram':           {'used_mb': mem['ram_used_mb'], 'total_mb': mem['ram_total_mb'],
                           'pct': ram_pct, 'severity': _sev(ram_pct, 'ram')},
         'swap':          {'used_mb': mem['swap_used_mb'], 'total_mb': mem['swap_total_mb'],
-                          'pct': swap_pct, 'severity': _sev(swap_pct, 'swap')},
+                          'pct': swap_pct, 'pressure': mem_pressure, 'severity': swap_sev},
         'docker_disk':   {**docker_effective, 'severity': _sev(docker_effective['pct'], 'docker_disk')},
         'ssd250_disk':   {**ssd250, 'severity': _sev(ssd250['pct'], 'ssd250_disk')},
         'nas_disk':      {**nas, 'severity': _sev(nas['pct'], 'nas_disk')},
