@@ -103,7 +103,6 @@ CONTAINERS = {
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
     'booknews': {'name': 'booknews', 'service': 'booknews', 'compose_dir': '/home/brandon/projects/NerdNews'},
     'funforge': {'name': 'funforge', 'service': 'funforge', 'compose_dir': '/home/brandon/projects/FunForge'},
-    'chess': {'name': 'chess_app', 'service': 'chess', 'compose_dir': '/home/brandon/projects/Chess'},
     'calibre': {'name': 'calibre', 'service': 'calibre', 'compose_dir': 'calibre'},
     'libby-web': {'name': 'libby-web', 'service': 'libby-web', 'compose_dir': 'libby-web'},
 
@@ -112,7 +111,6 @@ CONTAINERS = {
     'stash': {'name': 'stash', 'service': 'stash', 'compose_dir': 'stash'},
     'trilium': {'name': 'trilium', 'service': 'trilium', 'compose_dir': 'trilium'},
     'vaultwarden': {'name': 'vaultwarden', 'service': 'vaultwarden', 'compose_dir': 'vaultwarden'},
-    'pokevault': {'name': 'pokevault', 'service': 'web', 'compose_dir': '/home/brandon/projects/PokeVault'},
 
     # Infrastructure
     'dagu': {'name': 'dagu', 'service': 'dagu', 'compose_dir': 'dagu'},
@@ -140,7 +138,6 @@ MONITORED_CONTAINERS = [
     {'name': 'artforge',       'label': 'ArtForge',       'category': 'Apps'},
     {'name': 'wordforge',      'label': 'WordForge',      'category': 'Apps'},
     {'name': 'funforge',       'label': 'FunForge',       'category': 'Apps'},
-    {'name': 'chess_app',      'label': 'Chess Stats',    'category': 'Apps'},
     {'name': 'immich',         'label': 'Immich',         'category': 'Media'},
     {'name': 'immich-db',      'label': 'Immich DB',      'category': 'Media'},
     {'name': 'jellyfin',       'label': 'Jellyfin',       'category': 'Media'},
@@ -157,7 +154,6 @@ MONITORED_CONTAINERS = [
     {'name': 'trilium',        'label': 'Trilium',        'category': 'Tools'},
     {'name': 'stash',          'label': 'Stash',          'category': 'Tools'},
     {'name': 'vaultwarden',    'label': 'Vaultwarden',    'category': 'Tools'},
-    {'name': 'pokevault',      'label': 'PokeVault',      'category': 'Tools'},
     {'name': 'fileshare-miniserve',   'label': 'Fileshare (serve)',  'category': 'Tools', 'optional': True},
     {'name': 'fileshare-cloudflared', 'label': 'Fileshare (tunnel)', 'category': 'Tools', 'optional': True},
     {'name': 'dagu',           'label': 'Dagu',           'category': 'Infrastructure'},
