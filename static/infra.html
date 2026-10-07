@@ -364,7 +364,8 @@ function renderMetrics(snap) {
           pct: snap.ram.pct, sev: snap.ram.severity },
         { key: 'swap',        label: 'Swap',
           val: fmtMB(snap.swap.used_mb),
-          sub: 'of ' + fmtMB(snap.swap.total_mb),
+          sub: 'of ' + fmtMB(snap.swap.total_mb) +
+               (snap.swap.pressure != null ? ` · ${snap.swap.pressure}% memory pressure` : ''),
           pct: snap.swap.pct, sev: snap.swap.severity },
     ];
 
@@ -465,7 +466,10 @@ function renderProblems(snap) {
     [['cpu','cpu'],['ram','ram'],['swap','swap'],['docker_disk','docker_disk'],['nvme_disk','nvme_disk'],['nas_disk','nas_disk'],['external_disk','external_disk'],['ssd250_disk','ssd250_disk'],['allston_disk','allston_disk'],['flash_disk','flash_disk']].forEach(([key, sk]) => {
         const m = snap[key];
         if (m && m.severity && m.severity !== 'ok') {
-            problems.push(`${metricLabels[sk]} at ${m.pct}% — ${m.severity === 'crit' ? 'critical' : 'elevated'}`);
+            const level = m.severity === 'crit' ? 'critical' : 'elevated';
+            // Swap is graded on memory pressure, not fill (#70)
+            if (key === 'swap') problems.push(`Memory pressure at ${m.pressure}% (swap ${m.pct}% full) — ${level}`);
+            else problems.push(`${metricLabels[sk]} at ${m.pct}% — ${level}`);
         }
     });
 
