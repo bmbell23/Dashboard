@@ -101,12 +101,12 @@
       "name": "Chess Stats",
       "icon": "fas fa-chess-knight",
       "description": "chess.com Tracking & Charts",
-      "url": "http://100.69.184.113:8011",
-      "url_label": ":8011",
+      "url": "http://chess.10.0.0.201.sslip.io",
+      "url_label": "chess.10.0.0.201.sslip.io",
       "category": "Projects",
       "owner": "callie",
       "repo": "bmbell23/Chess",
-      "controls": "container"
+      "platform": "k3s"
     },
     {
       "key": "booknews",
@@ -141,12 +141,12 @@
       "name": "PokeVault",
       "icon": "fas fa-gamepad",
       "description": "Pokemon & TCG Collection Tracker",
-      "url": "http://100.69.184.113:8008",
-      "url_label": ":8008",
+      "url": "http://pokevault.10.0.0.201.sslip.io",
+      "url_label": "pokevault.10.0.0.201.sslip.io",
       "category": "Projects",
       "owner": "poppy",
       "repo": "bmbell23/PokeVault",
-      "controls": "container"
+      "platform": "k3s"
     },
     {
       "key": "dictionary",
