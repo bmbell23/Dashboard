@@ -2749,7 +2749,7 @@ def download_ytdlp():
                 threading.Thread(target=_stash_scan, daemon=True).start()
             return jsonify({'success': True, 'message': f'Download complete — saved to {dest_label}'})
         else:
-            err = (result.stderr or result.stdout or 'Unknown error').strip()
+            err = _cli_error(result.stderr or result.stdout) or 'Unknown error'
             logger.error(f"yt-dlp failed: {err}")
             return jsonify({'error': f'Download failed: {err}'}), 500
     except subprocess.TimeoutExpired:
@@ -2948,9 +2948,17 @@ def _media_kind(url: str, page_url: str) -> str:
         return 'image'
 
 
+def _cli_error(text: str) -> str:
+    """The ERROR: lines of yt-dlp/gallery-dl output, else its tail (#78): a WARNING first
+    line must not stand in for the cause."""
+    text = (text or '').strip()
+    errors = [ln.strip() for ln in text.splitlines() if re.match(r'\s*(\[[^\]]*\]\s*)?ERROR\b', ln, re.I)]
+    return ('\n'.join(errors) if errors else text)[-600:]
+
+
 def _run_tail(cmd: list, timeout: int) -> tuple[int, str, str]:
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    return r.returncode, r.stdout or '', (r.stderr or r.stdout or '').strip()[-600:]
+    return r.returncode, r.stdout or '', _cli_error(r.stderr or r.stdout)
 
 
 def _dl_video(url: str) -> str:
@@ -3330,7 +3338,7 @@ def download_gallery():
                 ).start()
             return jsonify({'success': True, 'message': f'Gallery download complete — images saved to {dest_label}'})
         else:
-            err = (result.stderr or result.stdout or 'Unknown error').strip()
+            err = _cli_error(result.stderr or result.stdout) or 'Unknown error'
             logger.error(f"gallery-dl failed: {err}")
             return jsonify({'error': f'Download failed: {err[:300]}'}), 500
 
