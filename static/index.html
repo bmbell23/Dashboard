@@ -1769,7 +1769,7 @@
                 const icon = `<i class="${esc(x.icon)}"></i>`;
                 const title = esc(x.title || x.label || '');
                 const id = x.id ? ` id="${esc(x.id)}"` : '';
-                if (x.href) return `<a class="chip"${id} href="${esc(x.href)}" target="_blank" rel="noopener" title="${title}">${icon} ${label}</a>`;
+                if (x.href) return `<a class="chip"${id} href="${esc(x.href)}" target="_blank" rel="noopener noreferrer" title="${title}">${icon} ${label}</a>`;
                 return `<button class="chip"${id} onclick="${esc(x.onclick)}" title="${title}"${x.disabled ? ' disabled' : ''}>${icon} ${label}</button>`;
             }
 
@@ -1792,15 +1792,16 @@
                 return ((data.open_prs || {}).prs || []).find(p => p.repo.toLowerCase() === repo.toLowerCase() && p.number === number);
             }
 
+            // noreferrer: qBittorrent's CSRF check answers 401 to a Referer from another origin (#74).
             function row(s) {
                 const [state, why] = health(s);
-                const target = s.url && s.url.startsWith('http') ? ' target="_blank" rel="noopener"' : '';
+                const target = s.url && s.url.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
                 const main = s.url
                     ? `<a class="svc-main" href="${esc(s.url)}"${target} title="${esc(s.url_label || s.url)}">`
                     : `<div class="svc-main">`;
                 // Each preview: the running review copy, plus the PR on GitHub to approve it.
                 const previews = (s.previews || []).map(p =>
-                    `<span class="chip-pair"><a class="chip preview" href="${esc(p.url)}" target="_blank" rel="noopener" title="Open the review copy: ${esc(p.container)} on :${p.port}">` +
+                    `<span class="chip-pair"><a class="chip preview" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" title="Open the review copy: ${esc(p.container)} on :${p.port}">` +
                     `<i class="fas fa-flask"></i> ${p.pr != null ? 'PR #' + p.pr : 'preview'}</a>` +
                     (p.pr != null && s.repo
                         ? `<a class="chip preview pr-link" href="https://github.com/${esc(s.repo)}/pull/${p.pr}" target="_blank" rel="noopener" title="Review and merge on GitHub: ${esc(s.repo)}#${p.pr}"><i class="fab fa-github"></i></a>`
