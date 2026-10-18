@@ -2623,7 +2623,9 @@ def _ytdlp_duration(url, cookies_args):
 @app.route('/api/download/ytdlp', methods=['POST'])
 def download_ytdlp():
     """Download audio or video from any yt-dlp supported site.
-    Body: { url, format, adult, short, kids }
+    Body: { url, format, adult, short, kids, dest }
+
+    dest "greatreads" (audio only, #76) answers 202 {job} at once; poll /api/download/ytdlp/<job>.
 
     Routing (paths from download_paths.json):
       audio + kids  → kids_music path if under 5 min, else kids_audio path
@@ -2642,6 +2644,13 @@ def download_ytdlp():
         return jsonify({'error': 'URL cannot be empty'}), 400
 
     fmt      = data.get('format', 'video').lower()
+    dest     = str(data.get('dest') or '').lower()
+    if dest:
+        if dest != 'greatreads':
+            return jsonify({'error': 'dest must be greatreads (or absent)'}), 400
+        if fmt != 'audio':
+            return jsonify({'error': 'dest greatreads needs format audio'}), 400
+        return _gr_enqueue(url)
     is_adult = bool(data.get('adult', False))
     is_short = bool(data.get('short', False))
     is_kids  = bool(data.get('kids', False))
@@ -3201,6 +3210,80 @@ def download_to_stash_status(job_id):
     with _stash_jobs_lock:
         job = dict(_stash_jobs.get(job_id) or {})
     if not job:
+        return jsonify({'ok': False, 'error': 'unknown job (finished over a day ago, or the Dashboard restarted)'}), 404
+    return jsonify({'ok': True, **job})
+
+
+# ── Audio → GreatReads (#76, agent-bus thread 028) ───────────────────────────
+# POST /api/download/ytdlp with dest "greatreads" queues a job on its own worker (a long
+# Stash video never holds up a track): yt-dlp extracts an MP3 into music/Youtube, then
+# GreatReads' ambient-track import names and registers it. Jobs share the Stash job store.
+
+GR_AUDIO_MOUNT = '/music'                           # yt-dlp-web: host /mnt/boston/media/music
+GR_AUDIO_MEDIA = '/media/music'                     # the same folder inside GreatReads
+GR_AMBIENT_URL = 'http://100.69.184.113:8092/api/ambient/tracks'
+_gr_queue: queue.Queue = queue.Queue()
+
+
+def _gr_job_run(job_id: str, url: str):
+    _sj_set(job_id, state='downloading')
+    cookies = (['--cookies', '/cookies/youtube.txt']
+               if os.path.exists('/home/brandon/projects/docker/youtube-downloader/cookies.txt') else [])
+    code, out, err = _run_tail([
+        'docker', 'exec', 'yt-dlp-web', 'yt-dlp',
+        '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0',
+        '--embed-thumbnail', '--add-metadata',
+        '--no-part', '--no-continue', '--retries', '10', '--no-playlist', *cookies,
+        '--no-simulate', '--print', 'after_move:GR\t%(filepath)s\t%(title)s',
+        '-o', f'{GR_AUDIO_MOUNT}/Youtube/%(uploader).80B/%(title).150B.%(ext)s', url], 3 * 3600)
+    lines = [ln.split('\t', 2) for ln in out.splitlines() if ln.startswith('GR\t')]
+    if code != 0 or not lines or not lines[-1][1].startswith(GR_AUDIO_MOUNT + '/'):
+        raise RuntimeError(f'yt-dlp failed: {err}')
+    _, filepath, title = lines[-1]
+    path = GR_AUDIO_MEDIA + filepath[len(GR_AUDIO_MOUNT):]
+    _sj_set(job_id, state='importing', path=path)
+    try:
+        r = requests.post(GR_AMBIENT_URL, json={'path': path, 'source_title': title, 'source_url': url}, timeout=30)
+    except requests.RequestException as ex:
+        raise RuntimeError(f'saved to {path}, but GreatReads did not answer: {ex}')
+    body = r.json() if r.headers.get('Content-Type', '').startswith('application/json') else {}
+    if r.status_code != 200:
+        raise RuntimeError(f'saved to {path}, but GreatReads refused it: {body.get("detail") or r.text[:300]}')
+    _sj_set(job_id, state='done', title=body.get('name'), track_id=body.get('id'))
+
+
+def _gr_worker():
+    while True:
+        job_id, url = _gr_queue.get()
+        try:
+            _gr_job_run(job_id, url)
+            logger.info(f'Audio to GreatReads {job_id}: done ({_stash_jobs[job_id].get("path")})')
+        except Exception as ex:
+            logger.error(f'Audio to GreatReads {job_id} failed: {ex}')
+            _sj_set(job_id, state='failed', error=str(ex)[:600])
+
+
+threading.Thread(target=_gr_worker, daemon=True, name='audio-to-greatreads').start()
+
+
+def _gr_enqueue(url: str):
+    if not re.match(r'https?://', url):
+        return jsonify({'ok': False, 'error': 'url must be http(s)'}), 400
+    job_id = uuid.uuid4().hex[:12]
+    now = int(time.time())
+    with _stash_jobs_lock:
+        _stash_jobs[job_id] = {'job': job_id, 'kind': 'greatreads', 'url': url, 'state': 'queued', 'error': None,
+                               'title': None, 'track_id': None, 'path': None, 'created': now, 'updated': now}
+    _gr_queue.put((job_id, url))
+    logger.info(f'Audio to GreatReads {job_id}: queued {url}')
+    return jsonify({'ok': True, 'job': job_id}), 202
+
+
+@app.route('/api/download/ytdlp/<job_id>')
+def download_ytdlp_status(job_id):
+    with _stash_jobs_lock:
+        job = dict(_stash_jobs.get(job_id) or {})
+    if job.get('kind') != 'greatreads':
         return jsonify({'ok': False, 'error': 'unknown job (finished over a day ago, or the Dashboard restarted)'}), 404
     return jsonify({'ok': True, **job})
 
