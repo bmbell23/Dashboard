@@ -176,7 +176,7 @@
       "key": "workforge",
       "name": "WorkForge",
       "icon": "fas fa-briefcase",
-      "description": "Work Jira Board",
+      "description": "Work Jira in one column",
       "url": "http://100.69.184.113:8018",
       "url_label": ":8018",
       "category": "Projects",
