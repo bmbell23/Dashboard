@@ -98,6 +98,7 @@ CONTAINERS = {
     'wordforge': {'name': 'wordforge', 'service': 'wordforge', 'compose_dir': '/home/brandon/projects/WordForge'},
     'mealforge': {'name': 'mealforge_app', 'service': 'mealforge', 'compose_dir': '/home/brandon/projects/MealForge'},
     'webforge': {'name': 'webforge_releases', 'service': 'webforge_releases', 'compose_dir': '/home/brandon/projects/WebForge'},
+    'workforge': {'name': 'workforge_web', 'service': 'web', 'compose_dir': '/home/brandon/projects/WorkForge'},
 
     # Reading
     'greatreads-prod': {'name': 'greatreads_ereader', 'service': 'greatreads_ereader', 'compose_dir': '/home/brandon/projects/Ereader/greatreads', 'compose_file': 'docker-compose.ereader.yml'},
@@ -138,6 +139,7 @@ MONITORED_CONTAINERS = [
     {'name': 'artforge',       'label': 'ArtForge',       'category': 'Apps'},
     {'name': 'wordforge',      'label': 'WordForge',      'category': 'Apps'},
     {'name': 'funforge',       'label': 'FunForge',       'category': 'Apps'},
+    {'name': 'workforge_web',  'label': 'WorkForge',      'category': 'Apps'},
     {'name': 'immich',         'label': 'Immich',         'category': 'Media'},
     {'name': 'immich-db',      'label': 'Immich DB',      'category': 'Media'},
     {'name': 'jellyfin',       'label': 'Jellyfin',       'category': 'Media'},
@@ -2248,9 +2250,12 @@ def recreate_container(service_id):
         compose_cmd = ['docker', 'compose']
         if compose_file:
             compose_cmd += ['-f', compose_file]
+        # HOME as on the host: compose files that mount ${HOME}/... (WorkForge's Jira login)
+        # would otherwise resolve to this container's /root and mount a missing path (#80).
         result = subprocess.run(
             compose_cmd + ['up', '-d', '--force-recreate', service_name],
             cwd=compose_dir if compose_dir.startswith('/') else f'/home/brandon/projects/docker/{compose_dir}',
+            env={**os.environ, 'HOME': '/home/brandon'},
             capture_output=True,
             text=True,
             timeout=120

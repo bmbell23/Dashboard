@@ -173,6 +173,18 @@
       "controls": "container"
     },
     {
+      "key": "workforge",
+      "name": "WorkForge",
+      "icon": "fas fa-briefcase",
+      "description": "Work Jira in one column",
+      "url": "http://100.69.184.113:8018",
+      "url_label": ":8018",
+      "category": "Projects",
+      "owner": "addie",
+      "repo": "bmbell23/WorkForge",
+      "controls": "container"
+    },
+    {
       "key": "museforge-studio",
       "name": "MuseForge Studio",
       "icon": "fas fa-palette",
